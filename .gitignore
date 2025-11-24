@@ -11,3 +11,4 @@ wheels/
 .venv
 .env
 /processing/data/*
+/csv_output

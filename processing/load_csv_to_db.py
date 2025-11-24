@@ -13,27 +13,39 @@ from csv_to_db_loader import CSVToDBLoader, AsyncCSVToDBLoader
 dotenv.load_dotenv(".env")
 
 
-def load_csvs_to_database(csv_dir: pathlib.Path, conn_string: str):
+def load_csvs_to_database(
+    csv_dir: pathlib.Path, conn_string: str, clear_tables: bool = False
+):
     """Load CSV files into database synchronously.
 
     Args:
         csv_dir: Directory containing CSV files
         conn_string: PostgreSQL connection string
+        clear_tables: If True, truncate tables before loading
     """
-    print(f"Loading CSV files from {csv_dir} into database")
+    print(f"Loading CSV files from {csv_dir} into database\n")
 
-    loader = CSVToDBLoader(conn_string=conn_string)
+    try:
+        loader = CSVToDBLoader(conn_string=conn_string)
+    except ConnectionError as e:
+        print(f"{e}")
+        return 1
+    except Exception as e:
+        print(f"\n❌ Unexpected error during connection:\n{e}")
+        return 1
+
     try:
         results = loader.load_csv_directory(
             str(csv_dir),
             commit=True,
+            clear_tables=clear_tables,
             progress_callback=lambda table, count: print(
                 f"  → {table}: {count:,} rows"
             ),
         )
 
         print("\n" + "=" * 60)
-        print("Summary:")
+        print("✅ SUCCESS - All data loaded!")
         print("=" * 60)
         total_rows = 0
         for table, count in results.items():
@@ -42,32 +54,48 @@ def load_csvs_to_database(csv_dir: pathlib.Path, conn_string: str):
         print("=" * 60)
         print(f"  {'TOTAL':30s} {total_rows:>10,} rows")
         print("=" * 60)
+        return 0
 
+    except Exception as e:
+        print(f"\n❌ Error during data load:\n{e}")
+        return 1
     finally:
         loader.close()
 
 
-async def load_csvs_to_database_async(csv_dir: pathlib.Path, conn_string: str):
+async def load_csvs_to_database_async(
+    csv_dir: pathlib.Path, conn_string: str, clear_tables: bool = False
+):
     """Load CSV files into database asynchronously.
 
     Args:
         csv_dir: Directory containing CSV files
         conn_string: PostgreSQL connection string
+        clear_tables: If True, truncate tables before loading
     """
-    print(f"Loading CSV files from {csv_dir} into database (async)")
+    print(f"Loading CSV files from {csv_dir} into database (async)\n")
 
-    async_loader = AsyncCSVToDBLoader(conn_string=conn_string, max_workers=1)
+    try:
+        async_loader = AsyncCSVToDBLoader(conn_string=conn_string, max_workers=1)
+    except ConnectionError as e:
+        print(f"{e}")
+        return 1
+    except Exception as e:
+        print(f"\n❌ Unexpected error during connection:\n{e}")
+        return 1
+
     try:
         results = await async_loader.load_csv_directory_async(
             str(csv_dir),
             commit=True,
+            clear_tables=clear_tables,
             progress_callback=lambda table, count: print(
                 f"  → {table}: {count:,} rows"
             ),
         )
 
         print("\n" + "=" * 60)
-        print("Summary:")
+        print("✅ SUCCESS - All data loaded!")
         print("=" * 60)
         total_rows = 0
         for table, count in results.items():
@@ -76,7 +104,11 @@ async def load_csvs_to_database_async(csv_dir: pathlib.Path, conn_string: str):
         print("=" * 60)
         print(f"  {'TOTAL':30s} {total_rows:>10,} rows")
         print("=" * 60)
+        return 0
 
+    except Exception as e:
+        print(f"\n❌ Error during data load:\n{e}")
+        return 1
     finally:
         await async_loader.close()
 
@@ -97,6 +129,11 @@ def main():
         action="store_true",
         help="Use async loading (default: synchronous)",
     )
+    parser.add_argument(
+        "--clear-tables",
+        action="store_true",
+        help="Clear all tables before loading (removes all existing data)",
+    )
 
     args = parser.parse_args()
 
@@ -112,10 +149,22 @@ def main():
         return
 
     # Load CSVs
-    if args.use_async:
-        asyncio.run(load_csvs_to_database_async(args.csv_dir, conn_string))
-    else:
-        load_csvs_to_database(args.csv_dir, conn_string)
+    try:
+        if args.use_async:
+            exit_code = asyncio.run(
+                load_csvs_to_database_async(
+                    args.csv_dir, conn_string, args.clear_tables
+                )
+            )
+        else:
+            exit_code = load_csvs_to_database(
+                args.csv_dir, conn_string, args.clear_tables
+            )
+
+        exit(exit_code if exit_code is not None else 0)
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Operation cancelled by user")
+        exit(130)
 
 
 if __name__ == "__main__":

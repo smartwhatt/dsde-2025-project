@@ -38,12 +38,107 @@ class CSVToDBLoader:
             conn_string: PostgreSQL connection string
             conn: Existing psycopg2 connection (alternative to conn_string)
         """
+        # ID mappings: CSV ID -> Database ID
+        self._id_mappings = {
+            "sources": {},
+            "affiliations": {},
+            "authors": {},
+            "subject_areas": {},
+            "keywords": {},
+            "funding_agencies": {},
+            "papers": {},
+            "paper_authors": {},
+        }
         if conn is not None:
             self.conn = conn
             self._owns_connection = False
         elif conn_string is not None:
-            self.conn = psycopg2.connect(conn_string)
-            self._owns_connection = True
+            try:
+                self.conn = psycopg2.connect(conn_string)
+                self._owns_connection = True
+            except psycopg2.OperationalError as e:
+                error_msg = str(e).lower()
+
+                # DNS resolution errors
+                if (
+                    "could not translate host name" in error_msg
+                    or "nodename nor servname" in error_msg
+                ):
+                    # Check if it's a Supabase hostname
+                    if "supabase.co" in conn_string:
+                        raise ConnectionError(
+                            "\n" + "=" * 70 + "\n"
+                            "DATABASE CONNECTION FAILED: Cannot resolve Supabase hostname\n"
+                            "=" * 70 + "\n\n"
+                            "CAUSE: IPv4/IPv6 compatibility issue\n"
+                            "Your network is IPv4-only, but Supabase direct connections require IPv6.\n\n"
+                            "SOLUTION: Use Session Pooler connection string\n"
+                            "Update your .env file with the Session Pooler connection:\n\n"
+                            "❌ OLD (Direct - requires IPv6):\n"
+                            "   postgresql://postgres.[REF]:[PASS]@db.[REF].supabase.co:5432/postgres\n\n"
+                            "✅ NEW (Session Pooler - works with IPv4):\n"
+                            "   postgresql://postgres.[REF]:[PASS]@aws-0-[region].pooler.supabase.com:6543/postgres\n\n"
+                            "HOW TO GET IT:\n"
+                            "1. Go to Supabase project → Settings → Database\n"
+                            "2. Find 'Connection string' section\n"
+                            "3. Select 'Session' mode (not Transaction)\n"
+                            "4. Copy the connection string\n"
+                            "5. Replace [YOUR-PASSWORD] with your actual password\n"
+                            "6. Update CONN_STRING in your .env file\n"
+                            "=" * 70 + "\n"
+                        ) from e
+                    else:
+                        raise ConnectionError(
+                            f"\nDNS resolution failed: Cannot resolve hostname\n"
+                            f"Error: {str(e)}\n\n"
+                            f"Possible causes:\n"
+                            f"- Network connectivity issue\n"
+                            f"- Invalid hostname in connection string\n"
+                            f"- DNS server problem\n"
+                        ) from e
+
+                # Authentication errors
+                elif (
+                    "password authentication failed" in error_msg
+                    or "invalid password" in error_msg
+                ):
+                    raise ConnectionError(
+                        f"\nAuthentication failed: Invalid username or password\n"
+                        f"Check your CONN_STRING in .env file\n"
+                    ) from e
+
+                # Connection refused
+                elif "connection refused" in error_msg:
+                    raise ConnectionError(
+                        f"\nConnection refused: Database server not accepting connections\n"
+                        f"- Check if database is running\n"
+                        f"- Verify port number (default: 5432, Supabase pooler: 6543)\n"
+                        f"- Check firewall settings\n"
+                    ) from e
+
+                # Timeout errors
+                elif "timeout" in error_msg or "timed out" in error_msg:
+                    raise ConnectionError(
+                        f"\nConnection timeout: Could not connect within time limit\n"
+                        f"- Check network connectivity\n"
+                        f"- Database server may be overloaded\n"
+                        f"- Try increasing timeout or reducing concurrency\n"
+                    ) from e
+
+                # Generic operational error
+                else:
+                    raise ConnectionError(
+                        f"\nDatabase connection failed\n"
+                        f"Error: {str(e)}\n\n"
+                        f"Check your CONN_STRING in .env file\n"
+                    ) from e
+
+            except psycopg2.Error as e:
+                # Catch other psycopg2 specific errors
+                raise ConnectionError(
+                    f"\nDatabase error: {str(e)}\n"
+                    f"Check your connection string and database configuration\n"
+                ) from e
         else:
             raise ValueError("Either conn or conn_string must be provided")
 
@@ -197,6 +292,7 @@ class CSVToDBLoader:
         self,
         csv_dir: str,
         commit: bool = True,
+        clear_tables: bool = False,
         progress_callback: Optional[Callable[[str, int], None]] = None,
     ) -> Dict[str, int]:
         """Load all CSV files from a directory into the database.
@@ -204,6 +300,7 @@ class CSVToDBLoader:
         Args:
             csv_dir: Directory containing CSV files
             commit: Whether to commit the transaction
+            clear_tables: If True, truncate tables before loading (clears all data)
             progress_callback: Optional callback(table_name, row_count)
 
         Returns:
@@ -217,6 +314,11 @@ class CSVToDBLoader:
         own_tx = self._manage_tx and commit
 
         try:
+            # Clear tables if requested (in reverse order to respect foreign keys)
+            if clear_tables:
+                print("\n🗑️  Clearing existing data...")
+                self._clear_all_tables()
+                print("✓ Tables cleared\n")
             for csv_file in self._load_order:
                 file_path = csv_path / csv_file
                 if not file_path.exists():
@@ -253,6 +355,41 @@ class CSVToDBLoader:
                 except Exception:
                     pass
             raise
+
+    def _clear_all_tables(self) -> None:
+        """Clear all tables in reverse dependency order using TRUNCATE CASCADE.
+
+        This ensures foreign key constraints are not violated during the clear operation.
+        """
+        cursor = self.conn.cursor()
+
+        # Clear in reverse order of loading (relationships -> facts -> dimensions)
+        # This respects foreign key dependencies
+        clear_order = [
+            "paper_funding",
+            "funding_agencies",
+            "reference_papers",
+            "paper_subject_areas",
+            "paper_keywords",
+            "paper_author_affiliations",
+            "paper_authors",
+            "papers",
+            "keywords",
+            "subject_areas",
+            "authors",
+            "affiliations",
+            "sources",
+        ]
+
+        for table in clear_order:
+            try:
+                cursor.execute(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE")
+                print(f"  ✓ Cleared {table}")
+            except Exception as e:
+                print(f"  ⚠ Warning: Could not clear {table}: {e}")
+                # Continue with other tables even if one fails
+
+        cursor.close()
 
     def _load_csv_file(
         self,
@@ -302,69 +439,502 @@ class CSVToDBLoader:
             return 0
 
         # Build INSERT statement based on table configuration
-        if has_id_mapping:
-            # For dimension tables with IDs, use ON CONFLICT DO NOTHING
-            # and map the synthetic CSV IDs to database IDs
-            if table_name in [
-                "sources",
-                "affiliations",
-                "authors",
-                "subject_areas",
-                "keywords",
-                "funding_agencies",
-            ]:
-                # These tables have natural keys we can use for conflict resolution
-                conflict_columns = self._get_conflict_columns(table_name)
-                placeholders = ",".join(["%s"] * len(columns))
-                cols_str = ",".join(columns)
-
-                if conflict_columns:
-                    # Use natural key for upsert
-                    sql = f"""
-                        INSERT INTO {table_name} ({cols_str})
-                        VALUES %s
-                        ON CONFLICT ({conflict_columns}) DO NOTHING
-                    """
-                else:
-                    sql = f"""
-                        INSERT INTO {table_name} ({cols_str})
-                        VALUES %s
-                    """
-            elif table_name == "papers":
-                # Papers use scopus_id as natural key
-                placeholders = ",".join(["%s"] * len(columns))
-                cols_str = ",".join(columns)
-                sql = f"""
-                    INSERT INTO {table_name} ({cols_str})
-                    VALUES %s
-                    ON CONFLICT (scopus_id) DO UPDATE SET
-                        cited_by_count = EXCLUDED.cited_by_count,
-                        updated_at = CURRENT_TIMESTAMP
-                """
-            else:
-                placeholders = ",".join(["%s"] * len(columns))
-                cols_str = ",".join(columns)
-                sql = f"INSERT INTO {table_name} ({cols_str}) VALUES %s"
+        if has_id_mapping and table_name in [
+            "sources",
+            "affiliations",
+            "authors",
+            "subject_areas",
+            "keywords",
+            "funding_agencies",
+            "papers",
+        ]:
+            # For dimension tables, skip CSV ID and build mapping after insert
+            return self._load_dimension_table(table_name, columns, rows)
+        elif table_name == "paper_authors":
+            # Special handling for paper_authors to build its own ID mapping
+            return self._load_paper_authors(columns, rows)
         else:
-            # For relationship tables without synthetic IDs
-            placeholders = ",".join(["%s"] * len(columns))
-            cols_str = ",".join(columns)
+            # For relationship tables, map CSV IDs to database IDs
+            return self._load_relationship_table(table_name, columns, rows)
 
-            # Get conflict resolution for relationship tables
-            conflict_cols = self._get_relationship_conflict_columns(table_name)
-            if conflict_cols:
-                sql = f"""
-                    INSERT INTO {table_name} ({cols_str})
-                    VALUES %s
-                    ON CONFLICT ({conflict_cols}) DO NOTHING
-                """
+    def _load_dimension_table(
+        self, table_name: str, columns: List[str], rows: List[tuple]
+    ) -> int:
+        """Load dimension table, skipping CSV ID and building ID mapping."""
+        conflict_column = self._get_conflict_columns(table_name)
+
+        # Skip first column (CSV ID) and use remaining columns
+        insert_columns = columns[1:]
+        cols_str = ",".join(insert_columns)
+
+        # Skip first value in each row (the CSV ID) but keep track of valid CSV IDs
+        csv_ids = [row[0] for row in rows]
+        insert_rows = [row[1:] for row in rows]
+
+        # Validate required columns based on table
+        required_columns = self._get_required_columns(table_name)
+        if required_columns:
+            valid_rows = []
+            valid_csv_ids = []
+            skipped_count = 0
+            for csv_id, row in zip(csv_ids, insert_rows):
+                # Check if required columns have non-NULL values
+                is_valid = True
+                for col_name in required_columns:
+                    if col_name in insert_columns:
+                        col_idx = insert_columns.index(col_name)
+                        if row[col_idx] is None:
+                            is_valid = False
+                            skipped_count += 1
+                            break
+                if is_valid:
+                    valid_rows.append(row)
+                    valid_csv_ids.append(csv_id)
+
+            if skipped_count > 0:
+                print(
+                    f"  ⚠ Skipped {skipped_count} rows in {table_name} due to NULL required columns"
+                )
+
+            insert_rows = valid_rows
+            csv_ids = valid_csv_ids
+
+        if not insert_rows:
+            return 0
+
+        if table_name == "papers":
+            # Papers: use scopus_id natural key
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+                ON CONFLICT (scopus_id) DO UPDATE SET
+                    cited_by_count = EXCLUDED.cited_by_count,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING paper_id, scopus_id
+            """
+        elif table_name == "funding_agencies":
+            # funding_agencies has a composite unique constraint on (agency_name, agency_country)
+            # Also has unique constraint on scopus_agency_id when not null
+            # Use the composite constraint which covers most cases
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+                ON CONFLICT (agency_name, agency_country) 
+                WHERE agency_name IS NOT NULL AND agency_country IS NOT NULL
+                DO NOTHING
+                RETURNING agency_id, scopus_agency_id, agency_name, agency_country
+            """
+        elif conflict_column:
+            # Other dimension tables with natural keys
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+                ON CONFLICT ({conflict_column}) DO NOTHING
+                RETURNING {columns[0]}, {conflict_column}
+            """
+        else:
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+                RETURNING {columns[0]}
+            """
+
+        # Execute and build ID mapping
+        execute_values(self.cur, sql, insert_rows, fetch=False)
+
+        # Explicitly fetch results after INSERT
+        try:
+            results = self.cur.fetchall()
+        except Exception:
+            results = []
+
+        # Build mapping from natural key to database ID AND CSV ID to database ID
+        if table_name == "papers":
+            # RETURNING only gives us the last batch from execute_values
+            # Query all papers to build complete mapping using scopus_id
+            scopus_id_idx = insert_columns.index("scopus_id")
+            scopus_ids_inserted = [row[scopus_id_idx] for row in insert_rows]
+
+            placeholders = ",".join(["%s"] * len(scopus_ids_inserted))
+            self.cur.execute(
+                f"SELECT paper_id, scopus_id FROM papers WHERE scopus_id IN ({placeholders})",
+                scopus_ids_inserted,
+            )
+
+            # Build scopus_id -> paper_id mapping
+            scopus_to_paper = {}
+            for paper_id, scopus_id in self.cur.fetchall():
+                self._id_mappings[table_name][scopus_id] = paper_id
+                scopus_to_paper[scopus_id] = paper_id
+
+            # Now map CSV IDs to database IDs using the scopus_id
+            for csv_id, row in zip(csv_ids, insert_rows):
+                scopus_id = row[scopus_id_idx]
+                paper_id = scopus_to_paper.get(scopus_id)
+                if paper_id:
+                    self._id_mappings[table_name][f"csv_{csv_id}"] = paper_id
+
+            print(
+                f"  📊 Mapped {len(scopus_to_paper)} papers via scopus_id, {len([k for k in self._id_mappings[table_name] if isinstance(k, str) and k.startswith('csv_')])} csv_ids"
+            )
+        elif table_name == "funding_agencies":
+            # Map both scopus_agency_id and (name, country) composite key
+            for idx, row in enumerate(results):
+                agency_id, scopus_id, name, country = row
+                if scopus_id:
+                    self._id_mappings[table_name][scopus_id] = agency_id
+                if name and country:
+                    self._id_mappings[table_name][(name, country)] = agency_id
+                # Also map CSV ID to database ID
+                if idx < len(csv_ids):
+                    csv_id = csv_ids[idx]
+                    self._id_mappings[table_name][f"csv_{csv_id}"] = agency_id
+        elif conflict_column:
+            # RETURNING only gives us the last batch from execute_values
+            # Query all records to build complete mapping
+            natural_key_idx = insert_columns.index(conflict_column)
+            natural_keys_inserted = [row[natural_key_idx] for row in insert_rows]
+
+            placeholders = ",".join(["%s"] * len(natural_keys_inserted))
+            self.cur.execute(
+                f"SELECT {columns[0]}, {conflict_column} FROM {table_name} WHERE {conflict_column} IN ({placeholders})",
+                natural_keys_inserted,
+            )
+
+            # Build natural_key -> id mapping
+            nat_key_to_id = {}
+            for db_id, natural_key in self.cur.fetchall():
+                self._id_mappings[table_name][natural_key] = db_id
+                nat_key_to_id[natural_key] = db_id
+
+            # Map CSV IDs to database IDs using the natural key
+            for csv_id, row in zip(csv_ids, insert_rows):
+                nat_key = row[natural_key_idx]
+                db_id = nat_key_to_id.get(nat_key)
+                if db_id:
+                    self._id_mappings[table_name][f"csv_{csv_id}"] = db_id
+
+            csv_mapped_count = len(
+                [
+                    k
+                    for k in self._id_mappings[table_name]
+                    if isinstance(k, str) and k.startswith("csv_")
+                ]
+            )
+            print(
+                f"  📊 Mapped {len(nat_key_to_id)} {table_name} via {conflict_column}, {csv_mapped_count} csv_ids"
+            )
+
+        # Also need to query existing records for DO NOTHING conflicts
+        if table_name == "funding_agencies":
+            # Query all funding agencies to build complete mapping
+            self.cur.execute(
+                "SELECT agency_id, scopus_agency_id, agency_name, agency_country FROM funding_agencies"
+            )
+            for agency_id, scopus_id, name, country in self.cur.fetchall():
+                if scopus_id:
+                    self._id_mappings[table_name][scopus_id] = agency_id
+                if name and country:
+                    self._id_mappings[table_name][(name, country)] = agency_id
+            # Map CSV IDs (for rows we attempted to insert) to DB IDs using the
+            # natural key mapping we just built above. This ensures that CSV
+            # references (csv_123) are available even when the row already
+            # existed in the database and was not returned by RETURNING.
+            for csv_id, insert_row in zip(csv_ids, insert_rows):
+                # Prefer scopus_agency_id if present, else use (name, country)
+                scopus_idx = None
+                name_idx = None
+                country_idx = None
+                try:
+                    scopus_idx = insert_columns.index("scopus_agency_id")
+                except ValueError:
+                    scopus_idx = None
+                try:
+                    name_idx = insert_columns.index("agency_name")
+                    country_idx = insert_columns.index("agency_country")
+                except ValueError:
+                    name_idx = country_idx = None
+
+                db_id = None
+                if scopus_idx is not None:
+                    scopus_val = insert_row[scopus_idx]
+                    if scopus_val:
+                        db_id = self._id_mappings[table_name].get(scopus_val)
+                if db_id is None and name_idx is not None and country_idx is not None:
+                    name_val = insert_row[name_idx]
+                    country_val = insert_row[country_idx]
+                    if name_val and country_val:
+                        db_id = self._id_mappings[table_name].get(
+                            (name_val, country_val)
+                        )
+
+                if db_id is not None:
+                    self._id_mappings[table_name][f"csv_{csv_id}"] = db_id
+        elif conflict_column:
+            natural_key_idx = (
+                columns.index(conflict_column) - 1
+                if conflict_column in columns
+                else None
+            )
+            if natural_key_idx is not None:
+                natural_keys = [row[natural_key_idx] for row in insert_rows]
+                # Query database for existing IDs
+                placeholders = ",".join(["%s"] * len(natural_keys))
+                self.cur.execute(
+                    f"SELECT {columns[0]}, {conflict_column} FROM {table_name} WHERE {conflict_column} IN ({placeholders})",
+                    natural_keys,
+                )
+                for db_id, natural_key in self.cur.fetchall():
+                    self._id_mappings[table_name][natural_key] = db_id
+                # Map CSV IDs to DB IDs for any rows that already existed
+                for csv_id, nat_key in zip(csv_ids, natural_keys):
+                    db_id = self._id_mappings[table_name].get(nat_key)
+                    if db_id is not None:
+                        self._id_mappings[table_name][f"csv_{csv_id}"] = db_id
+
+        return len(insert_rows)
+
+    def _load_paper_authors(self, columns: List[str], rows: List[tuple]) -> int:
+        """Load paper_authors table, mapping CSV IDs to database IDs."""
+        # Map CSV IDs to database IDs using the mappings built earlier
+        papers_mapping = self._id_mappings.get("papers", {})
+        authors_mapping = self._id_mappings.get("authors", {})
+
+        # Debug: show mapping stats
+        papers_csv_count = sum(
+            1
+            for k in papers_mapping.keys()
+            if isinstance(k, str) and k.startswith("csv_")
+        )
+        authors_csv_count = sum(
+            1
+            for k in authors_mapping.keys()
+            if isinstance(k, str) and k.startswith("csv_")
+        )
+        print(
+            f"  📊 Available mappings: papers={papers_csv_count} csv_ids, authors={authors_csv_count} csv_ids"
+        )
+
+        # Map CSV IDs to database IDs and deduplicate
+        seen_pairs = {}  # (db_paper_id, db_author_id) -> (sequence, original_row_index)
+        skipped_count = 0
+        fk_violations = 0
+        first_unmapped_paper = None
+        first_unmapped_author = None
+
+        for idx, row in enumerate(rows):
+            csv_pa_id, csv_paper_id, csv_author_id, sequence = row
+
+            # Map CSV IDs to database IDs
+            db_paper_id = papers_mapping.get(f"csv_{csv_paper_id}")
+            db_author_id = authors_mapping.get(f"csv_{csv_author_id}")
+
+            # Skip if mapping failed (paper/author was skipped during load)
+            if db_paper_id is None or db_author_id is None:
+                fk_violations += 1
+                if db_paper_id is None and first_unmapped_paper is None:
+                    first_unmapped_paper = csv_paper_id
+                if db_author_id is None and first_unmapped_author is None:
+                    first_unmapped_author = csv_author_id
+                continue
+
+            pair_key = (db_paper_id, db_author_id)
+
+            # Keep the first occurrence of each (paper_id, author_id) pair
+            if pair_key not in seen_pairs:
+                seen_pairs[pair_key] = (sequence, idx)
             else:
-                sql = f"INSERT INTO {table_name} ({cols_str}) VALUES %s"
+                skipped_count += 1
 
-        # Execute bulk insert
+        # Convert deduplicated data to list
+        mapped_rows = [
+            (p_id, a_id, seq) for (p_id, a_id), (seq, _) in seen_pairs.items()
+        ]
+
+        if skipped_count > 0:
+            print(f"  ⚠ Skipped {skipped_count} duplicate (paper_id, author_id) pairs")
+        if fk_violations > 0:
+            print(
+                f"  ⚠ Skipped {fk_violations} rows with invalid foreign key references"
+            )
+            if first_unmapped_paper:
+                print(f"     First unmapped paper CSV ID: {first_unmapped_paper}")
+            if first_unmapped_author:
+                print(f"     First unmapped author CSV ID: {first_unmapped_author}")
+
+        if not mapped_rows:
+            return 0
+
+        cols_str = "paper_id, author_id, author_sequence"
+        sql = f"""
+            INSERT INTO paper_authors ({cols_str})
+            VALUES %s
+            ON CONFLICT (paper_id, author_id) DO UPDATE SET
+                author_sequence = EXCLUDED.author_sequence
+            RETURNING paper_author_id, paper_id, author_id
+        """
+
+        execute_values(self.cur, sql, mapped_rows, fetch=True)
+        # Fetch RETURNING results (paper_author_id, paper_id, author_id)
+        results = self.cur.fetchall()
+
+        # Build mapping for paper_authors: both (paper_id, author_id) -> pa_id
+        # and csv_<csv_pa_id> -> pa_id so relationship tables can map CSV IDs.
+        # We need to reconstruct the list of csv_pa_ids that correspond to
+        # the inserted mapped_rows. `seen_pairs` preserved insertion order.
+        csv_pa_ids_for_mapped = []
+        for (db_p_id, db_a_id), (seq, original_idx) in seen_pairs.items():
+            csv_pa_id = rows[original_idx][0]
+            csv_pa_ids_for_mapped.append(csv_pa_id)
+
+        for idx, (pa_id, p_id, a_id) in enumerate(results):
+            # Map by (paper_id, author_id)
+            self._id_mappings["paper_authors"][(p_id, a_id)] = pa_id
+            # Map CSV ID -> DB ID if we have the corresponding CSV id
+            if idx < len(csv_pa_ids_for_mapped):
+                csv_id = csv_pa_ids_for_mapped[idx]
+                self._id_mappings["paper_authors"][f"csv_{csv_id}"] = pa_id
+
+        return len(mapped_rows)
+
+    def _load_relationship_table(
+        self, table_name: str, columns: List[str], rows: List[tuple]
+    ) -> int:
+        """Load relationship table with conflict handling and deduplication."""
+        # Map CSV IDs to database IDs
+        papers_mapping = self._id_mappings.get("papers", {})
+        paper_authors_mapping = self._id_mappings.get("paper_authors", {})
+
+        fk_violations = 0
+        mapped_rows = []
+
+        # Map paper_id references from CSV IDs to database IDs
+        if "paper_id" in columns:
+            paper_id_idx = columns.index("paper_id")
+
+            for row in rows:
+                row_list = list(row)
+                csv_paper_id = row_list[paper_id_idx]
+
+                # Map CSV ID to database ID
+                db_paper_id = papers_mapping.get(f"csv_{csv_paper_id}")
+
+                if db_paper_id is not None:
+                    row_list[paper_id_idx] = db_paper_id
+                    mapped_rows.append(tuple(row_list))
+                else:
+                    fk_violations += 1
+
+            if fk_violations > 0:
+                print(
+                    f"  ⚠ Skipped {fk_violations} rows with invalid paper_id in {table_name}"
+                )
+            rows = mapped_rows
+
+        # Map paper_author_id references (for paper_author_affiliations)
+        if "paper_author_id" in columns:
+            pa_id_idx = columns.index("paper_author_id")
+            mapped_rows = []
+            pa_violations = 0
+
+            for row in rows:
+                row_list = list(row)
+                csv_pa_id = row_list[pa_id_idx]
+
+                # For paper_author_id, we need to look it up from the mapping
+
+                # Map CSV paper_author_id -> DB paper_author_id using mapping
+                pa_db = None
+                if csv_pa_id is not None:
+                    pa_db = self._id_mappings.get("paper_authors", {}).get(
+                        f"csv_{csv_pa_id}"
+                    )
+                if pa_db is not None:
+                    row_list[pa_id_idx] = pa_db
+                    mapped_rows.append(tuple(row_list))
+                else:
+                    # If no mapping, it will be treated as a FK violation below
+                    mapped_rows.append(tuple(row_list))
+
+            # Validate paper_author_id exists
+            self.cur.execute("SELECT paper_author_id FROM paper_authors")
+            valid_pa_ids = {row[0] for row in self.cur.fetchall()}
+
+            valid_rows = []
+            for row in mapped_rows:
+                if row[pa_id_idx] in valid_pa_ids:
+                    valid_rows.append(row)
+                else:
+                    pa_violations += 1
+
+            if pa_violations > 0:
+                print(
+                    f"  ⚠ Skipped {pa_violations} rows with invalid paper_author_id in {table_name}"
+                )
+                fk_violations += pa_violations
+            rows = valid_rows
+
+        conflict_cols = self._get_relationship_conflict_columns(table_name)
+
+        # Deduplicate rows - use conflict columns if defined, otherwise all columns
+        if conflict_cols:
+            # Determine which columns form the unique constraint
+            conflict_col_list = [c.strip() for c in conflict_cols.split(",")]
+            conflict_indices = [columns.index(col) for col in conflict_col_list]
+        else:
+            # No explicit conflict clause - deduplicate on all columns
+            conflict_indices = list(range(len(columns)))
+
+        seen_keys = set()
+        deduplicated_rows = []
+        skipped_count = 0
+
+        for row in rows:
+            # Build a key from the conflict columns (or all columns)
+            key = tuple(row[i] for i in conflict_indices)
+
+            if key not in seen_keys:
+                seen_keys.add(key)
+                deduplicated_rows.append(row)
+            else:
+                skipped_count += 1
+
+        if skipped_count > 0:
+            print(f"  ⚠ Skipped {skipped_count} duplicate rows in {table_name}")
+
+        rows = deduplicated_rows
+
+        if not rows:
+            return 0
+
+        cols_str = ",".join(columns)
+
+        if conflict_cols:
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+                ON CONFLICT ({conflict_cols}) DO NOTHING
+            """
+        else:
+            sql = f"""
+                INSERT INTO {table_name} ({cols_str})
+                VALUES %s
+            """
+
         execute_values(self.cur, sql, rows)
-
         return len(rows)
+
+    def _get_required_columns(self, table_name: str) -> List[str]:
+        """Get list of required (NOT NULL) columns for validation."""
+        required_map = {
+            "papers": ["title", "scopus_id"],  # title and scopus_id are required
+            "authors": ["auid"],  # auid is the natural key
+            "sources": ["scopus_source_id"],
+            "affiliations": ["scopus_affiliation_id"],
+            "subject_areas": ["subject_code"],
+            "keywords": ["keyword"],
+        }
+        return required_map.get(table_name, [])
 
     def _get_conflict_columns(self, table_name: str) -> Optional[str]:
         """Get natural key columns for conflict resolution."""
@@ -386,7 +956,7 @@ class CSVToDBLoader:
             "paper_keywords": "paper_id, keyword_id",
             "paper_subject_areas": "paper_id, subject_area_id",
             "reference_papers": "paper_id, reference_sequence",
-            "paper_funding": None,  # No unique constraint
+            "paper_funding": "paper_id, agency_id",  # Composite unique constraint
         }
         return conflict_map.get(table_name)
 
@@ -401,6 +971,52 @@ class CSVToDBLoader:
                 self.conn.close()
             except Exception:
                 pass
+
+    def report_mappings(self, csv_dir: Optional[str] = None) -> None:
+        """Print diagnostics about ID mappings.
+
+        If csv_dir is provided, the method will read CSV files to compute how
+        many CSV IDs were expected versus how many were mapped.
+        """
+        print("\nMapping diagnostics:")
+        for table, mapping in self._id_mappings.items():
+            total_mapped = len(mapping)
+            csv_mapped = sum(
+                1 for k in mapping.keys() if isinstance(k, str) and k.startswith("csv_")
+            )
+            nat_mapped = total_mapped - csv_mapped
+            print(
+                f"  {table:20s}: total keys={total_mapped}, csv_ids_mapped={csv_mapped}, natural_keys_mapped={nat_mapped}"
+            )
+
+        if csv_dir:
+            import pathlib
+
+            csv_path = pathlib.Path(csv_dir)
+            if not csv_path.exists():
+                print(f"  CSV directory not found: {csv_dir}")
+                return
+
+            for csv_file, (table_name, cols, _) in self._table_map.items():
+                p = csv_path / csv_file
+                if not p.exists():
+                    continue
+                # Read CSV first column IDs
+                with open(p, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    try:
+                        header = next(reader)
+                    except StopIteration:
+                        continue
+                    csv_ids = [row[0] for row in reader if row]
+
+                mapped = 0
+                for cid in csv_ids:
+                    if f"csv_{cid}" in self._id_mappings.get(table_name, {}):
+                        mapped += 1
+                print(
+                    f"  {table_name:20s}: csv_rows={len(csv_ids):6,d}, csv_mapped={mapped:6,d}"
+                )
 
 
 class AsyncCSVToDBLoader:
@@ -422,6 +1038,7 @@ class AsyncCSVToDBLoader:
         self,
         csv_dir: str,
         commit: bool = True,
+        clear_tables: bool = False,
         progress_callback: Optional[Callable[[str, int], None]] = None,
     ) -> Dict[str, int]:
         """Async load CSV directory into database.
@@ -429,6 +1046,7 @@ class AsyncCSVToDBLoader:
         Args:
             csv_dir: Directory containing CSV files
             commit: Whether to commit the transaction
+            clear_tables: If True, truncate tables before loading (clears all data)
             progress_callback: Optional callback(table_name, row_count)
 
         Returns:
@@ -442,7 +1060,10 @@ class AsyncCSVToDBLoader:
             loader = CSVToDBLoader(conn_string=self.conn_string)
             try:
                 return loader.load_csv_directory(
-                    csv_dir, commit=commit, progress_callback=progress_callback
+                    csv_dir,
+                    commit=commit,
+                    clear_tables=clear_tables,
+                    progress_callback=progress_callback,
                 )
             finally:
                 loader.close()

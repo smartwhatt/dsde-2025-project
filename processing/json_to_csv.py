@@ -1,20 +1,16 @@
-"""Upload Scopus JSON data to PostgreSQL database.
+"""Export Scopus JSON data to CSV files.
 
-This script loads JSON files from a directory and uploads them to a database
-using the AsyncScopusDBLoader handler.
+This script loads JSON files from a directory and exports them to normalized
+CSV files representing database tables.
 """
 
 import argparse
-import asyncio
 import json
 import pathlib
-import dotenv
 import tqdm
 from typing import List
 
-from handler import AsyncScopusDBLoader
-
-dotenv.load_dotenv(".env")
+from csv_exporter import ScopusCSVExporter
 
 
 def load_json_files(data_dir: pathlib.Path, batch_size: int = 100) -> List[List[dict]]:
@@ -64,35 +60,23 @@ def load_json_files(data_dir: pathlib.Path, batch_size: int = 100) -> List[List[
     return batches
 
 
-async def upload_to_database(
-    data_dir: pathlib.Path,
-    batch_size: int = 100,
-    concurrency: int = 8,
-    preupsert: bool = False,
+def export_to_csv(
+    data_dir: pathlib.Path, output_dir: pathlib.Path, batch_size: int = 100
 ):
-    """Upload JSON files to database.
+    """Export JSON files to CSV format.
 
     Args:
         data_dir: Directory containing JSON files
+        output_dir: Directory where CSV files will be written
         batch_size: Number of papers to process per batch
-        concurrency: Number of concurrent workers
-        preupsert: Whether to pre-upsert metadata before processing papers
     """
-    print(f"Uploading data from {data_dir} to database")
-
-    conn_string = dotenv.get_key(".env", "CONN_STRING")
-    if not conn_string:
-        raise ValueError("CONN_STRING not found in .env file")
+    print(f"Exporting data from {data_dir} to CSV in {output_dir}")
 
     # Load JSON files in batches
     batches = load_json_files(data_dir, batch_size)
 
-    # Create async loader
-    async_loader = AsyncScopusDBLoader(
-        conn_string, max_workers=concurrency, disable_metadata_upsert=not preupsert
-    )
-
-    try:
+    # Create CSV exporter
+    with ScopusCSVExporter(output_dir=str(output_dir)) as exporter:
         total_papers = sum(len(batch) for batch in batches)
         processed = 0
 
@@ -101,26 +85,22 @@ async def upload_to_database(
                 f"\nProcessing batch {batch_idx}/{len(batches)} ({len(batch)} papers)"
             )
 
-            # Upload batch
-            paper_ids = await async_loader.insert_papers_batch_async(
+            # Export batch
+            paper_ids = exporter.export_papers_batch(
                 batch,
-                commit=True,
                 progress_callback=lambda current, total: None,  # Progress handled by tqdm
                 task_callback=lambda task, current, total: print(f"  {task}"),
             )
 
             processed += len(paper_ids)
-            print(f"Uploaded {processed}/{total_papers} papers total")
+            print(f"Processed {processed}/{total_papers} papers total")
 
-    finally:
-        await async_loader.close()
-
-    print(f"\n✓ Upload complete!")
+    print(f"\n✓ Export complete! CSV files saved to {output_dir}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Upload Scopus JSON files to PostgreSQL database"
+        description="Export Scopus JSON files to CSV format"
     )
     parser.add_argument(
         "--data-dir",
@@ -135,15 +115,10 @@ def main():
         help="Number of papers per batch (default: 100)",
     )
     parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=8,
-        help="Number of concurrent workers (default: 8)",
-    )
-    parser.add_argument(
-        "--preupsert",
-        action="store_true",
-        help="Pre-upsert metadata before processing papers",
+        "--output-dir",
+        type=pathlib.Path,
+        default=pathlib.Path("./csv_output"),
+        help="Output directory for CSV files (default: ./csv_output)",
     )
 
     args = parser.parse_args()
@@ -153,11 +128,7 @@ def main():
         print(f"Error: Data directory {args.data_dir} does not exist")
         return
 
-    asyncio.run(
-        upload_to_database(
-            args.data_dir, args.batch_size, args.concurrency, args.preupsert
-        )
-    )
+    export_to_csv(args.data_dir, args.output_dir, args.batch_size)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,101 @@
+source_id,source_name,source_abbrev,scopus_source_id,issn_print,issn_electronic,publisher,source_type
+1,Clinical and Experimental Dermatology,Clin. Exp. Dermatol.,24294,03076938,13652230,John Wiley and Sons Inc,j
+2,International Journal of Mathematics and Computer Science,Int. J. Math. Comput. Sci.,21100854726,18140424,18140432,"Badih/Ghusayni, Ed. & Pub.",j
+3,Microbiology Spectrum,Microbiol. Spectr.,21100433120,,,American Society for Microbiology,j
+4,Annals of Palliative Medicine,Ann. Palliat. Med.,21100408176,22245820,22245839,AME Publishing Company,j
+5,Translational Research in Anatomy,Trans. Res. Anat.,21100451564,,,Elsevier GmbH,j
+6,Frontiers in Microbiology,Front. Microbiol.,21100226442,,,Frontiers Media S.A.,j
+7,International Review of Financial Analysis,Int. Rev. Financ. Anal.,17385,,,Elsevier Inc.,j
+8,Insects,Insects,21100242257,,,MDPI,j
+9,ARQ,ARQ,5800173395,07160852,07176996,Pontificia Universidad Catolica de Chile,j
+10,Gut,Gut,28366,00175749,14683288,BMJ Publishing Group,j
+11,Agriculture and Natural Resources,Agric. Nat. Resour.,21100777184,24681458,2452316X,Kasetsart University,j
+12,Journal of Cranio-Maxillofacial Surgery,J. Cranio-Maxillofac. Surg.,21658,10105182,18784119,Churchill Livingstone,j
+13,Cogent Education,Cogent Educ.,21100843893,,,Taylor and Francis Ltd.,j
+14,Journal of Small Business Management,J. Small Bus. Manage.,28581,00472778,1540627X,Taylor and Francis Ltd.,j
+15,Clinical Journal of Pain,Clin. J. Pain,14880,07498047,15365409,Lippincott Williams and Wilkins,j
+16,Asian Pacific Journal of Allergy and Immunology,Asian Pac. J. Allergy Immunol.,20667,0125877X,22288694,Allergy and Immunology Society of Thailand,j
+17,Chemosphere,Chemosphere,24657,00456535,18791298,Elsevier Ltd,j
+18,Environmental Technology (United Kingdom),Environ. Technol.,21552,09593330,1479487X,Taylor and Francis Ltd.,j
+19,Food Research International,Food Res. Int.,23180,09639969,18737145,Elsevier Ltd,j
+20,The Lancet HIV,Lancet HIV,21100369870,,,Elsevier Ltd,j
+21,Quaternary International,Quat. Int.,25776,,,Elsevier Ltd,j
+22,International Forum of Allergy and Rhinology,Int. Forum Allergy Rhinol.,21100202148,20426976,20426984,John Wiley and Sons Inc,j
+23,Surgical Endoscopy,Surg. Endosc.,19196,09302794,14322218,Springer,j
+24,TRaNS: Trans-Regional and -National Studies of Southeast Asia,TRaNS: Trans-Reg. -Natl. Stud. Southeast Asia,21100793924,2051364X,20513658,Cambridge University Press,j
+25,International Journal of Molecular Sciences,Int. J. Mol. Sci.,25879,16616596,14220067,MDPI,j
+26,Sustainable Chemistry and Pharmacy,Sustain. Chem. Pharm.,21100444313,,,Elsevier B.V.,j
+27,IOP Conference Series: Earth and Environmental Science,IOP Conf. Ser. Earth Environ. Sci.,19900195068,17551307,17551315,Institute of Physics,p
+28,BMC Pediatrics,BMC Pediatr.,14521,,,BioMed Central Ltd,j
+29,ACM International Conference Proceeding Series,ACM Int. Conf. Proc. Ser.,11600154611,,,Association for Computing Machinery,p
+30,Nano Energy,Nano Energy,21100197947,,,Elsevier Ltd,j
+31,Journal of Chemical Education,J Chem Educ,24169,00219584,19381328,American Chemical Society,j
+32,Astronomy and Astrophysics,Astron. Astrophys.,26750,00046361,14320746,EDP Sciences,j
+33,Journal of Molecular Structure,J. Mol. Struct.,24642,,,Elsevier B.V.,j
+34,Frontiers in Earth Science,Front. Earth Sci.,21100782253,,,Frontiers Media S.A.,j
+35,Proceedings of Science,Proc. Sci.,21100253049,,,Sissa Medialab Srl,p
+36,Natural Product Research,Nat. Prod. Res.,24819,14786419,14786427,Taylor and Francis Ltd.,j
+37,Journal of the International AIDS Society,J. Int. AIDS Soc.,19700175037,,,John Wiley and Sons Inc,j
+38,International Journal of Pharmacy Practice,Int. J. Pharm. Pract.,22456,09617671,20427174,Oxford University Press,j
+39,Scientific Reports,Sci. Rep.,21100200805,,,Nature Research,j
+40,Travel Medicine and Infectious Disease,Travel Med. Infect. Dis.,20200,14778939,18730442,Elsevier Inc.,j
+41,"2022 16th European Conference on Antennas and Propagation, EuCAP 2022","Eur. Conf. Antennas Propag., EuCAP",21101089648,,,Institute of Electrical and Electronics Engineers Inc.,p
+42,Frontiers in Immunology,Front. Immunol.,21100229161,,,Frontiers Media S.A.,j
+43,Physiology and Behavior,Physiol. Behav.,24007,00319384,1873507X,Elsevier Inc.,j
+44,Journal of Chemical Technology and Biotechnology,J. Chem. Technol. Biotechnol.,16083,02682575,10974660,John Wiley and Sons Ltd,j
+45,Computer Graphics Forum,Comput Graphics Forum,25023,01677055,14678659,John Wiley and Sons Inc,j
+46,Journal of High Energy Physics,J. High Energy Phys.,28520,,,Springer Science and Business Media Deutschland GmbH,j
+47,Respiratory Medicine,Respir. Med.,18639,09546111,15323064,W.B. Saunders Ltd,j
+48,Progress in Neuro-Psychopharmacology and Biological Psychiatry,Prog. Neuro-Psychopharmacol. Biol. Psychiatry,21767,02785846,18784216,Elsevier Inc.,j
+49,Molecular Catalysis,Mol. Cat.,21100831009,,,Elsevier B.V.,j
+50,Forensic Science International,Forensic Sci. Int.,27743,03790738,18726283,Elsevier Ireland Ltd,j
+51,International Journal of Energy Research,Int. J. Energy Res.,26676,0363907X,1099114X,John Wiley and Sons Ltd,j
+52,Journal of Applied Clinical Medical Physics,J. Appl. Clin. Med. Phys.,27214,,,John Wiley and Sons Ltd,j
+53,Plastic and Reconstructive Surgery,Plast. Reconstr. Surg.,22170,,,Lippincott Williams and Wilkins,j
+54,Journal of the Pediatric Infectious Diseases Society,J. Pediatric Infect. Dis. Soc.,21100428207,20487193,20487207,Oxford University Press,j
+55,Journal of Industrial and Engineering Chemistry,J. Ind. Eng. Chem.,144861,1226086X,22345957,Korean Society of Industrial Engineering Chemistry,j
+56,BMEiCON 2022 - 14th Biomedical Engineering International Conference,BMEiCON - Biomed. Eng. Int. Conf.,21101133212,,,Institute of Electrical and Electronics Engineers Inc.,p
+57,Journal of Current Science and Technology,J. Curr. Sci. Tech.,21101021222,26300583,26300656,Rangsit University,j
+58,Enzyme and Microbial Technology,Enzyme Microb. Technol.,15609,01410229,18790909,Elsevier Inc.,j
+59,Nanoscale Research Letters,Nanoscale Res. Lett.,5200152801,19317573,1556276X,Springer,j
+60,Tropical Life Sciences Research,Trop. Life Sci. Res.,19200157039,19853718,21804249,Penerbit Universiti Sains Malaysia,j
+61,Science of the Total Environment,Sci. Total Environ.,25349,00489697,18791026,Elsevier B.V.,j
+62,Global Business Review,Global Bus. Rev.,17600154910,09721509,09730664,Sage Publications India Pvt. Ltd,j
+63,Frontiers in Medicine,Front. Med.,21100868809,,,Frontiers Media S.A.,j
+64,PLoS ONE,PLoS ONE,10600153309,,,Public Library of Science,j
+65,Molecules,Molecules,26370,,,MDPI,j
+66,Biomedicine and Pharmacotherapy,Biomed. Pharmacother.,28620,07533322,19506007,Elsevier Masson s.r.l.,j
+67,Anatomy and Cell Biology,Anat. Cell Biol.,21100432868,20933665,20933673,Korean Association of Anatomists,j
+68,International Journal of Emerging Technology and Advanced Engineering,Int. J. Emerg. Technol. Adv. Eng.,21101041557,,,IJETAE Publication House,j
+69,Polymers,Polym.,54222,,,MDPI,j
+70,Corporate Social Responsibility and Environmental Management,Corp. Soc. Responsib. Environ. Manage.,21873,15353958,15353966,John Wiley and Sons Ltd,j
+71,Fuel,Fuel,16313,,,Elsevier Ltd,j
+72,Journal of Pharmaceutical Policy and Practice,J. pharm. policy pract.,21100325142,,,BioMed Central Ltd,j
+73,Materials Today: Proceedings,Mater. Today Proc.,21100370037,,,Elsevier Ltd,p
+74,PACE - Pacing and Clinical Electrophysiology,PACE Pacing Clin. Electrophysiol.,20516,01478389,15408159,John Wiley and Sons Inc,j
+75,Phytopharmaceuticals and Biotechnology of Herbal Plants,Phytopharm. and Biotechnol. of Herb. Plants,21101123258,,,CRC Press,b
+76,Materials Today Chemistry,Mater. Today Chem.,21100810714,,,Elsevier Ltd,j
+77,European Cardiology Review,Eur. Cardiol. Rev.,19700201452,17583756,17583764,Radcliffe Medical Media,j
+78,Neurospine,Neurospine,21100907002,,,Korean Spinal Neurosurgery Society,j
+79,Thai Journal of Mathematics,J. Math.,19900192463,,,Chiang Mai University,j
+80,Blood Purification,Blood Purif.,25471,02535068,14219735,S. Karger AG,j
+81,Journal of Pharmaceutical Investigation,J. Pharma. Invest.,21100220486,20935552,20936214,Springer,j
+82,Journal of Periodontology,J. Periodontol.,26173,,,John Wiley and Sons Inc,j
+83,ICSEC 2022 - International Computer Science and Engineering Conference 2022,ICSEC - Int. Comput. Sci. Eng. Conf.,21101140125,,,Institute of Electrical and Electronics Engineers Inc.,p
+84,PLoS Neglected Tropical Diseases,PLoS. Negl. Trop. Dis.,11900154404,19352727,19352735,Public Library of Science,j
+85,International Journal of Biological Macromolecules,Int. J. Biol. Macromol.,17544,01418130,18790003,Elsevier B.V.,j
+86,Applied Environmental Research,Appl. Environ. Res.,21100932720,22870741,2287075X,Chulalongkorn University - Environmental Research Institute,j
+87,World Journal of Hepatology,World J. Hepatol.,21100243806,,,Baishideng Publishing Group Inc,j
+88,Hormones and Behavior,Horm. Behav.,26133,0018506X,10956867,Academic Press Inc.,j
+89,Asian Pacific Journal of Cancer Prevention,Asian Pac. J. Cancer Preven.,40173,15137368,2476762X,Asian Pacific Organization for Cancer Prevention,j
+90,Songklanakarin Journal of Science and Technology,Songklanakarin J. Sci. Technol.,3900148502,,,Prince of Songkla University,j
+91,Pharmaceuticals,Pharmaceuticals,17700156714,,,MDPI,j
+92,Frontiers in Neurology,Front. Neurol.,21100212316,,,Frontiers Media S.A.,j
+93,Ophthalmic Research,Ophthalmic Res.,14630,00303747,14230259,S. Karger AG,j
+94,Journal of International Logistics and Trade,J. Intl. Logist. Trade,21100945715,17382122,25087592,Jungseok Research Institute of International Logistics and Trade,j
+95,"Journal of Plastic, Reconstructive and Aesthetic Surgery",J. Plast. Reconstr. Aesthetic Surg.,4000148817,17486815,18780539,Churchill Livingstone,j
+96,BMC Oral Health,BMC Oral Health,24341,,,BioMed Central Ltd,j
+97,Vaccine,Vaccine,21376,0264410X,18732518,Elsevier Ltd,j
+98,Peritoneal Dialysis International,Peritoneal Dial. Int.,17009,08968608,17184304,SAGE Publications Inc.,j
+99,International Journal of Solids and Structures,Int. J. Solids Struct.,14398,,,Elsevier Ltd,j
+100,Cretaceous Research,Cretaceous Res.,22539,01956671,1095998X,Academic Press,j

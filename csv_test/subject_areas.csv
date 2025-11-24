@@ -1,0 +1,101 @@
+subject_area_id,subject_code,subject_name,subject_abbrev
+1,2708,Dermatology,MEDI
+2,1701,Computer Science (miscellaneous),COMP
+3,2602,Algebra and Number Theory,MATH
+4,2613,Statistics and Probability,MATH
+5,2612,Numerical Analysis,MATH
+6,2611,Modeling and Simulation,MATH
+7,2607,Discrete Mathematics and Combinatorics,MATH
+8,2605,Computational Mathematics,MATH
+9,2604,Applied Mathematics,MATH
+10,1314,Physiology,BIOC
+11,2303,Ecology,ENVI
+12,2400,Immunology and Microbiology (all),IMMU
+13,1311,Genetics,BIOC
+14,2726,Microbiology (medical),MEDI
+15,1307,Cell Biology,BIOC
+16,2725,Infectious Diseases,MEDI
+17,2902,Advanced and Specialized Nursing,NURS
+18,2703,Anesthesiology and Pain Medicine,MEDI
+19,2702,Anatomy,MEDI
+20,2404,Microbiology,IMMU
+21,2003,Finance,ECON
+22,2002,Economics and Econometrics,ECON
+23,1109,Insect Science,AGRI
+24,1206,Conservation,ARTS
+25,2216,Architecture,ENGI
+26,1213,Visual Arts and Performing Arts,ARTS
+27,2715,Gastroenterology,MEDI
+28,1100,Agricultural and Biological Sciences (all),AGRI
+29,2746,Surgery,MEDI
+30,3504,Oral Surgery,DENT
+31,2733,Otorhinolaryngology,MEDI
+32,3304,Education,SOCI
+33,1400,"Business, Management and Accounting (all)",BUSI
+34,1408,Strategy and Management,BUSI
+35,1405,Management of Technology and Innovation,BUSI
+36,2728,Neurology (clinical),MEDI
+37,2723,Immunology and Allergy,MEDI
+38,2403,Immunology,IMMU
+39,2305,Environmental Engineering,ENVI
+40,2304,Environmental Chemistry,ENVI
+41,1600,Chemistry (all),CHEM
+42,2310,Pollution,ENVI
+43,2739,"Public Health, Environmental and Occupational Health",MEDI
+44,2307,"Health, Toxicology and Mutagenesis",ENVI
+45,2312,Water Science and Technology,ENVI
+46,2311,Waste Management and Disposal,ENVI
+47,1106,Food Science,AGRI
+48,2713,Epidemiology,MEDI
+49,2406,Virology,IMMU
+50,1904,Earth-Surface Processes,EART
+51,3316,Cultural Studies,SOCI
+52,3305,"Geography, Planning and Development",SOCI
+53,3314,Anthropology,SOCI
+54,1202,History,ARTS
+55,3312,Sociology and Political Science,SOCI
+56,1503,Catalysis,CENG
+57,1312,Molecular Biology,BIOC
+58,1607,Spectroscopy,CHEM
+59,1706,Computer Science Applications,COMP
+60,1606,Physical and Theoretical Chemistry,CHEM
+61,1605,Organic Chemistry,CHEM
+62,1604,Inorganic Chemistry,CHEM
+63,3003,Pharmaceutical Science,PHAR
+64,2308,"Management, Monitoring, Policy and Law",ENVI
+65,2300,Environmental Science (all),ENVI
+66,1900,Earth and Planetary Sciences (all),EART
+67,2735,"Pediatrics, Perinatology and Child Health",MEDI
+68,1712,Software,COMP
+69,1709,Human-Computer Interaction,COMP
+70,1707,Computer Vision and Pattern Recognition,COMP
+71,1705,Computer Networks and Communications,COMP
+72,2105,"Renewable Energy, Sustainability and the Environment",ENER
+73,2500,Materials Science (all),MATE
+74,2208,Electrical and Electronic Engineering,ENGI
+75,3103,Astronomy and Astrophysics,PHYS
+76,1912,Space and Planetary Science,EART
+77,1602,Analytical Chemistry,CHEM
+78,1000,Multidisciplinary,MULT
+79,1303,Biochemistry,BIOC
+80,1110,Plant Science,AGRI
+81,3611,Pharmacy,HEAL
+82,2719,Health Policy,MEDI
+83,2504,"Electronic, Optical and Magnetic Materials",MATE
+84,3105,Instrumentation,PHYS
+85,3108,Radiation,PHYS
+86,3205,Experimental and Cognitive Psychology,PSYC
+87,2802,Behavioral Neuroscience,NEUR
+88,1305,Biotechnology,BIOC
+89,1500,Chemical Engineering (all),CENG
+90,2103,Fuel Technology,ENER
+91,1704,Computer Graphics and Computer-Aided Design,COMP
+92,3106,Nuclear and High Energy Physics,PHYS
+93,2740,Pulmonary and Respiratory Medicine,MEDI
+94,3004,Pharmacology,PHAR
+95,2803,Biological Psychiatry,NEUR
+96,1508,Process Chemistry and Technology,CENG
+97,2734,Pathology and Forensic Medicine,MEDI
+98,2104,Nuclear Energy and Engineering,ENER
+99,2102,Energy Engineering and Power Technology,ENER
+100,2741,"Radiology, Nuclear Medicine and Imaging",MEDI

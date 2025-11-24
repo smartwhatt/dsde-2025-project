@@ -774,26 +774,48 @@ class CSVToDBLoader:
             RETURNING paper_author_id, paper_id, author_id
         """
 
-        execute_values(self.cur, sql, mapped_rows, fetch=True)
-        # Fetch RETURNING results (paper_author_id, paper_id, author_id)
-        results = self.cur.fetchall()
+        execute_values(self.cur, sql, mapped_rows, fetch=False)
 
-        # Build mapping for paper_authors: both (paper_id, author_id) -> pa_id
-        # and csv_<csv_pa_id> -> pa_id so relationship tables can map CSV IDs.
-        # We need to reconstruct the list of csv_pa_ids that correspond to
-        # the inserted mapped_rows. `seen_pairs` preserved insertion order.
-        csv_pa_ids_for_mapped = []
+        # Query all paper_authors we just inserted to build complete mapping
+        # Build list of (paper_id, author_id) pairs to query
+        pa_pairs = [(p_id, a_id) for (p_id, a_id), _ in seen_pairs.items()]
+
+        # Query in batches if needed (avoid huge SQL)
+        batch_size = 5000
+        pair_to_pa_id = {}
+        for i in range(0, len(pa_pairs), batch_size):
+            batch = pa_pairs[i : i + batch_size]
+            # Use VALUES clause to match multiple pairs
+            values_str = ",".join([f"({p},{a})" for p, a in batch])
+            self.cur.execute(
+                f"""
+                SELECT pa.paper_author_id, pa.paper_id, pa.author_id
+                FROM paper_authors pa
+                JOIN (VALUES {values_str}) AS v(paper_id, author_id)
+                ON pa.paper_id = v.paper_id AND pa.author_id = v.author_id
+            """
+            )
+            for pa_id, p_id, a_id in self.cur.fetchall():
+                self._id_mappings["paper_authors"][(p_id, a_id)] = pa_id
+                pair_to_pa_id[(p_id, a_id)] = pa_id
+
+        # Build csv_<id> -> pa_id mapping using original rows
         for (db_p_id, db_a_id), (seq, original_idx) in seen_pairs.items():
             csv_pa_id = rows[original_idx][0]
-            csv_pa_ids_for_mapped.append(csv_pa_id)
+            pa_id = pair_to_pa_id.get((db_p_id, db_a_id))
+            if pa_id:
+                self._id_mappings["paper_authors"][f"csv_{csv_pa_id}"] = pa_id
 
-        for idx, (pa_id, p_id, a_id) in enumerate(results):
-            # Map by (paper_id, author_id)
-            self._id_mappings["paper_authors"][(p_id, a_id)] = pa_id
-            # Map CSV ID -> DB ID if we have the corresponding CSV id
-            if idx < len(csv_pa_ids_for_mapped):
-                csv_id = csv_pa_ids_for_mapped[idx]
-                self._id_mappings["paper_authors"][f"csv_{csv_id}"] = pa_id
+        csv_pa_mapped = len(
+            [
+                k
+                for k in self._id_mappings["paper_authors"]
+                if isinstance(k, str) and k.startswith("csv_")
+            ]
+        )
+        print(
+            f"  📊 Mapped {len(pair_to_pa_id)} paper_authors, {csv_pa_mapped} csv_ids"
+        )
 
         return len(mapped_rows)
 
@@ -841,8 +863,6 @@ class CSVToDBLoader:
                 row_list = list(row)
                 csv_pa_id = row_list[pa_id_idx]
 
-                # For paper_author_id, we need to look it up from the mapping
-
                 # Map CSV paper_author_id -> DB paper_author_id using mapping
                 pa_db = None
                 if csv_pa_id is not None:
@@ -853,18 +873,7 @@ class CSVToDBLoader:
                     row_list[pa_id_idx] = pa_db
                     mapped_rows.append(tuple(row_list))
                 else:
-                    # If no mapping, it will be treated as a FK violation below
-                    mapped_rows.append(tuple(row_list))
-
-            # Validate paper_author_id exists
-            self.cur.execute("SELECT paper_author_id FROM paper_authors")
-            valid_pa_ids = {row[0] for row in self.cur.fetchall()}
-
-            valid_rows = []
-            for row in mapped_rows:
-                if row[pa_id_idx] in valid_pa_ids:
-                    valid_rows.append(row)
-                else:
+                    # Skip if no mapping (paper_author was skipped during load)
                     pa_violations += 1
 
             if pa_violations > 0:
@@ -872,7 +881,41 @@ class CSVToDBLoader:
                     f"  ⚠ Skipped {pa_violations} rows with invalid paper_author_id in {table_name}"
                 )
                 fk_violations += pa_violations
-            rows = valid_rows
+            rows = mapped_rows
+
+        # Validate other foreign keys (keyword_id, subject_area_id, affiliation_id, agency_id)
+        # These use CSV IDs directly and need to be mapped
+        for fk_col, fk_table in [
+            ("keyword_id", "keywords"),
+            ("subject_area_id", "subject_areas"),
+            ("affiliation_id", "affiliations"),
+            ("agency_id", "funding_agencies"),
+        ]:
+            if fk_col in columns:
+                fk_idx = columns.index(fk_col)
+                fk_mapping = self._id_mappings.get(fk_table, {})
+                mapped_rows = []
+                fk_viol = 0
+
+                for row in rows:
+                    row_list = list(row)
+                    csv_fk_id = row_list[fk_idx]
+
+                    # Map CSV ID to database ID
+                    db_fk_id = fk_mapping.get(f"csv_{csv_fk_id}")
+
+                    if db_fk_id is not None:
+                        row_list[fk_idx] = db_fk_id
+                        mapped_rows.append(tuple(row_list))
+                    else:
+                        fk_viol += 1
+
+                if fk_viol > 0:
+                    print(
+                        f"  ⚠ Skipped {fk_viol} rows with invalid {fk_col} in {table_name}"
+                    )
+                    fk_violations += fk_viol
+                rows = mapped_rows
 
         conflict_cols = self._get_relationship_conflict_columns(table_name)
 
@@ -956,7 +999,7 @@ class CSVToDBLoader:
             "paper_keywords": "paper_id, keyword_id",
             "paper_subject_areas": "paper_id, subject_area_id",
             "reference_papers": "paper_id, reference_sequence",
-            "paper_funding": "paper_id, agency_id",  # Composite unique constraint
+            "paper_funding": None,  # No unique constraint, rely on deduplication
         }
         return conflict_map.get(table_name)
 

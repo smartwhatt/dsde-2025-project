@@ -295,27 +295,112 @@ class ScopusDBLoader:
 
     def _insert_affiliation(self, aff_data):
         """Insert or get affiliation"""
-        sql = """
+        scopus_aff = aff_data.get("@id")
+        name = aff_data.get("affilname")
+        city = aff_data.get("affiliation-city")
+        state = aff_data.get("state")
+        country = aff_data.get("affiliation-country")
+        postal = aff_data.get("postal-code")
+
+        # If we have a scopus affiliation id, try to find it first to avoid
+        # expensive inserts that may contend on indexes under high concurrency.
+        # Use INSERT ... ON CONFLICT to atomically insert-or-return the row
+        # to avoid races that can otherwise raise UniqueViolation.
+        if scopus_aff:
+            try:
+                # Fast path: try to find an existing affiliation by scopus id
+                self.cur.execute(
+                    "SELECT affiliation_id FROM affiliations WHERE scopus_affiliation_id=%s",
+                    (scopus_aff,),
+                )
+                row = self.cur.fetchone()
+                if row:
+                    return row[0]
+            except Exception:
+                # If the SELECT fails for any reason, continue to the UPSERT
+                pass
+
+            # Use ON CONFLICT on scopus_affiliation_id to perform an upsert and
+            # return the affiliation_id whether the row was inserted or already
+            # existed. The DO UPDATE is written as a no-op that still allows
+            # RETURNING to produce the existing row's id.
+            upsert_sql = """
+                INSERT INTO affiliations (
+                    scopus_affiliation_id, affiliation_name,
+                    city, state, country, postal_code
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (scopus_affiliation_id) DO UPDATE SET
+                    affiliation_name = COALESCE(EXCLUDED.affiliation_name, affiliations.affiliation_name),
+                    city = COALESCE(EXCLUDED.city, affiliations.city),
+                    state = COALESCE(EXCLUDED.state, affiliations.state),
+                    country = COALESCE(EXCLUDED.country, affiliations.country),
+                    postal_code = COALESCE(EXCLUDED.postal_code, affiliations.postal_code)
+                RETURNING affiliation_id
+            """
+
+            try:
+                self.cur.execute(
+                    upsert_sql,
+                    (scopus_aff, name, city, state, country, postal),
+                )
+                row = self.cur.fetchone()
+                if row and row[0] is not None:
+                    return row[0]
+            except Exception:
+                # In the unlikely event the upsert fails (race, lock, etc.),
+                # try to select the row as a fallback. If that also fails,
+                # re-raise the original exception so callers can handle it.
+                try:
+                    self.cur.execute(
+                        "SELECT affiliation_id FROM affiliations WHERE scopus_affiliation_id=%s",
+                        (scopus_aff,),
+                    )
+                    row = self.cur.fetchone()
+                    if row:
+                        return row[0]
+                except Exception:
+                    pass
+                raise
+
+        # No scopus id: try to match by name + city + country as best-effort
+        if not name:
+            return None
+
+        try:
+            self.cur.execute(
+                "SELECT affiliation_id FROM affiliations WHERE affiliation_name=%s AND city IS NOT DISTINCT FROM %s AND country IS NOT DISTINCT FROM %s",
+                (name, city, country),
+            )
+            row = self.cur.fetchone()
+            if row:
+                return row[0]
+        except Exception:
+            pass
+
+        insert_sql = """
             INSERT INTO affiliations (
                 scopus_affiliation_id, affiliation_name,
                 city, state, country, postal_code
             ) VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (scopus_affiliation_id) DO UPDATE SET
-                affiliation_name = EXCLUDED.affiliation_name
             RETURNING affiliation_id
         """
 
-        values = (
-            aff_data.get("@id"),
-            aff_data.get("affilname"),
-            aff_data.get("affiliation-city"),
-            aff_data.get("state"),
-            aff_data.get("affiliation-country"),
-            aff_data.get("postal-code"),
-        )
-
-        self.cur.execute(sql, values)
-        return self.cur.fetchone()[0]
+        try:
+            self.cur.execute(insert_sql, (None, name, city, state, country, postal))
+            return self.cur.fetchone()[0]
+        except Exception:
+            # Final attempt to find by name/city/country in case of race
+            try:
+                self.cur.execute(
+                    "SELECT affiliation_id FROM affiliations WHERE affiliation_name=%s AND city IS NOT DISTINCT FROM %s AND country IS NOT DISTINCT FROM %s",
+                    (name, city, country),
+                )
+                row = self.cur.fetchone()
+                if row:
+                    return row[0]
+            except Exception:
+                pass
+            raise
 
     def _link_paper_author(self, paper_id, author_id, sequence):
         """Link paper to author"""
@@ -352,6 +437,9 @@ class ScopusDBLoader:
             auth_keywords = []
         else:
             auth_keywords = auth_keywords.get("author-keyword", [])
+
+        if not isinstance(auth_keywords, list):
+            auth_keywords = [auth_keywords]
 
         for kw in auth_keywords:
             keyword_id = self._insert_keyword(kw.get("$"), "author")
@@ -609,6 +697,53 @@ class ScopusDBLoader:
                 self.conn.close()
             except Exception:
                 pass
+
+
+class AsyncScopusDBLoader:
+    """Async wrapper that runs the blocking ScopusDBLoader in a thread pool.
+
+    This provides an easy path to parallelize uploads without rewriting all
+    SQL for an async DB driver. Each call runs in a separate thread and uses
+    its own DB connection (created from the provided conn_string). This is
+    simpler and safe because the synchronous loader is not shared across
+    threads.
+
+    Usage:
+        async_loader = AsyncScopusDBLoader(conn_string, max_workers=8)
+        await async_loader.insert_paper_async(json_data)
+        await async_loader.close()
+    """
+
+    def __init__(self, conn_string, max_workers=8):
+        import concurrent.futures
+
+        self.conn_string = conn_string
+        # ThreadPoolExecutor used for blocking DB operations
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+
+    async def insert_paper_async(self, json_data):
+        """Run ScopusDBLoader.insert_paper in a thread and return the paper id."""
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+
+        def _worker(data):
+            # Create a fresh ScopusDBLoader with its own connection per task
+            loader = ScopusDBLoader(conn_string=self.conn_string)
+            try:
+                pid = loader.insert_paper(data)
+                return pid
+            finally:
+                loader.close()
+
+        return await loop.run_in_executor(self._executor, _worker, json_data)
+
+    async def close(self):
+        # Shutdown the executor
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._executor.shutdown, True)
 
 
 # Usage example

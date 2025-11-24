@@ -7,4 +7,5 @@ requires-python = ">=3.11"
 dependencies = [
     "psycopg2>=2.9.11",
     "python-dotenv>=1.2.1",
+    "tqdm>=4.67.1",
 ]

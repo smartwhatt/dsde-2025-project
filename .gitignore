@@ -12,3 +12,4 @@ wheels/
 .env
 /processing/data/*
 /csv_output
+.DS_Store

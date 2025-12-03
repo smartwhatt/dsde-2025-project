@@ -244,6 +244,9 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
             html.P("No authors found matching your criteria.", className="text-muted text-center p-4"),
             dbc.Alert("No results found. Try adjusting your filters.", color="warning", className="mb-3")
         ]
+    df["profile_link"] = df["author_id"].apply(
+        lambda aid: f"[🔗](/author/{aid})"
+    )
     
     # Create AG Grid table
     table = dag.AgGrid(
@@ -282,6 +285,17 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
                 "headerName": "Scopus ID",
                 "width": 130,
             },
+            {
+                "field": "profile_link",
+                "headerName": "",
+                "width": 70,
+                "cellRenderer": "markdown",
+                "suppressMenu": True,
+                "sortable": False,
+                "filter": False,
+                "pinned": "right",
+                "cellStyle": {"textAlign": "center"},
+            },
         ],
         defaultColDef={
             "resizable": True,
@@ -310,85 +324,4 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
 )
 def display_author_papers(selected_rows):
     """Display papers for selected author."""
-    if not selected_rows:
-        return None
-    
-    author = selected_rows[0]
-    author_id = author["author_id"]
-    author_name = author["indexed_name"]
-    
-    df = get_author_papers(author_id)
-    
-    if df.empty:
-        return dbc.Card([
-            dbc.CardHeader([
-                html.H5(f"Papers by {author_name}", className="mb-0 fw-semibold")
-            ]),
-            dbc.CardBody([
-                html.P("No papers found for this author.", className="text-muted")
-            ]),
-        ], className="shadow-sm")
-    
-    table = dag.AgGrid(
-        rowData=df.to_dict("records"),
-        columnDefs=[
-            {
-                "field": "title",
-                "headerName": "Title",
-                "flex": 3,
-                "wrapText": True,
-                "autoHeight": True,
-            },
-            {
-                "field": "all_authors",
-                "headerName": "Authors",
-                "flex": 2,
-            },
-            {
-                "field": "publication_year",
-                "headerName": "Year",
-                "width": 90,
-                "type": "numericColumn",
-            },
-            {
-                "field": "cited_by_count",
-                "headerName": "Citations",
-                "width": 110,
-                "type": "numericColumn",
-                "cellStyle": {"fontWeight": "bold"},
-            },
-            {
-                "field": "source_name",
-                "headerName": "Source",
-                "flex": 2,
-            },
-        ],
-        defaultColDef={
-            "resizable": True,
-            "sortable": True,
-            "filter": True,
-        },
-        dashGridOptions={
-            "pagination": True,
-            "paginationPageSize": 10,
-        },
-        style={"height": "500px", "width": "100%"},
-    )
-    
-    return dbc.Card([
-        dbc.CardHeader([
-            html.H5([
-                html.I(className="bi bi-person-fill me-2"),
-                f"Publications by {author_name}"
-            ], className="mb-0 fw-semibold"),
-        ]),
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    dbc.Badge(f"{len(df)} Papers", color="primary", className="me-2"),
-                    dbc.Badge(f"{df['cited_by_count'].sum():,.0f} Total Citations", color="success"),
-                ], className="mb-3"),
-            ]),
-            table,
-        ], className="p-3"),
-    ], className="shadow-sm mt-4")
+    return None

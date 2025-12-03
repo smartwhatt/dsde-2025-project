@@ -5,13 +5,16 @@ import dash
 
 import pandas as pd
 import psycopg2
+from sqlalchemy import create_engine
 import dotenv
 dash.register_page(__name__)
 
 conn_string = dotenv.get_key(".env", "CONN_STRING")
-conn = psycopg2.connect(conn_string)
 
-df = pd.read_sql_query("SELECT * from papers LIMIT 50", conn)
+engine = create_engine(conn_string, echo=True)
+
+with engine.connect() as connection:
+    df = pd.read_sql_query("SELECT * from papers LIMIT 50", connection)
 
 layout = html.Div([
     html.Div(children='My First App with Data'),

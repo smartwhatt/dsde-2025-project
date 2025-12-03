@@ -11,7 +11,14 @@ app = Dash(__name__, use_pages=True)
 
 # Requires Dash 2.17.0 or later
 app.layout = [
-    
+    html.H1('Temp Nav Bar'),
+    html.Div([
+        html.Div(
+            dcc.Link(f"{page['name']} - {page['path']}", href=page["relative_path"])
+        ) for page in dash.page_registry.values()
+    ]),
+    html.Hr(),
+    dash.page_container
 ]
 
 

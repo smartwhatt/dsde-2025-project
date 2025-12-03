@@ -333,8 +333,8 @@ layout = dbc.Container([
                             dbc.Input(
                                 id="aff-min-year-input",
                                 type="number",
-                                min=2018,
-                                placeholder="2018",
+                                min=1900,
+                                placeholder="1900",
                                 className="mb-3"
                             ),
                         ], md=4),
@@ -343,7 +343,7 @@ layout = dbc.Container([
                             dbc.Input(
                                 id="aff-max-year-input",
                                 type="number",
-                                min=2018,
+                                min=1900,
                                 placeholder="2025",
                                 className="mb-3"
                             ),

@@ -466,7 +466,7 @@ layout = dbc.Container(
                         [
                             dbc.CardHeader(
                                 html.H5(
-                                    "Top 10 Most Prolific Authors",
+                                    "Top 10 Most Prolific Authors in Chulalongkorn University",
                                     className="mb-0 fw-semibold",
                                 )
                             ),

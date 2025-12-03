@@ -244,6 +244,9 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
             html.P("No authors found matching your criteria.", className="text-muted text-center p-4"),
             dbc.Alert("No results found. Try adjusting your filters.", color="warning", className="mb-3")
         ]
+    df["profile_link"] = df["author_id"].apply(
+        lambda aid: f"[🔗](/author/{aid})"
+    )
     
     # Create AG Grid table
     table = dag.AgGrid(
@@ -281,6 +284,17 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
                 "field": "auid",
                 "headerName": "Scopus ID",
                 "width": 130,
+            },
+            {
+                "field": "profile_link",
+                "headerName": "",
+                "width": 70,
+                "cellRenderer": "markdown",
+                "suppressMenu": True,
+                "sortable": False,
+                "filter": False,
+                "pinned": "right",
+                "cellStyle": {"textAlign": "center"},
             },
         ],
         defaultColDef={

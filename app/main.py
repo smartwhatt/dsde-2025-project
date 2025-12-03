@@ -24,7 +24,7 @@ def make_navbar():
                 active="exact",
             )
         )
-        for page in dash.page_registry.values()
+        for page in dash.page_registry.values() if len(page["relative_path"].split("/")) <= 2 # Make sure only surface level are rendered
     ]
 
     return dbc.Navbar(

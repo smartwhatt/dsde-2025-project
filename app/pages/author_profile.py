@@ -93,6 +93,12 @@ def get_top_cited_papers(author_id):
             df["title"] = df["title"].apply(
                 lambda x: x[:100] + "..." if x and len(str(x)) > 100 else x
             )
+
+            # Format Title as HTML Hyperlink
+            df['title_display'] = df.apply(
+                lambda x: f'<a href="/papers/{x["paper_id"]}" style="text-decoration: none; color: #0d6efd; font-weight: 500;">{x["title"]}</a>',
+                axis=1
+            )
         return df
     except Exception as e:
         print(f"Error fetching top cited papers: {e}")
@@ -118,6 +124,10 @@ def get_top_collaborators(author_id):
         """)
         with engine.connect() as connection:
             df = pd.read_sql_query(query, connection, params={'author_id': author_id})
+            df['indexed_name_display'] = df.apply(
+                lambda x: f'<a href="/author/{x["author_id"]}" style="text-decoration: none; color: #0d6efd; font-weight: 500;">{x["indexed_name"]}</a>',
+                axis=1
+            )
         return df
     except Exception as e:
         print(f"Error fetching collaborators: {e}")
@@ -414,11 +424,12 @@ def layout(author_id=None, **kwargs):
                             rowData=df_top_cited.to_dict("records") if not df_top_cited.empty else [],
                             columnDefs=[
                                 {
-                                    "field": "title",
+                                    "field": "title_display",
                                     "headerName": "Title",
                                     "flex": 3,
                                     "wrapText": True,
                                     "autoHeight": True,
+                                    "cellRenderer": "markdown",
                                 },
                                 {
                                     "field": "publication_year",
@@ -448,6 +459,7 @@ def layout(author_id=None, **kwargs):
                                 "pagination": False,
                                 "domLayout": "autoHeight",
                             },
+                            dangerously_allow_code=True,
                             style={"width": "100%"},
                         ) if not df_top_cited.empty else html.P("No papers found", className="text-muted")
                     ], className="p-3")
@@ -494,8 +506,9 @@ def layout(author_id=None, **kwargs):
                             rowData=df_collaborators.to_dict("records") if not df_collaborators.empty else [],
                             columnDefs=[
                                 {
-                                    "field": "indexed_name",
+                                    "field": "indexed_name_display",
                                     "headerName": "Collaborator",
+                                    "cellRenderer": "markdown",
                                     "flex": 2,
                                 },
                                 {
@@ -511,6 +524,7 @@ def layout(author_id=None, **kwargs):
                                 "sortable": True,
                                 "filter": True,
                             },
+                            dangerously_allow_code=True,
                             dashGridOptions={
                                 "pagination": False,
                                 "domLayout": "autoHeight",

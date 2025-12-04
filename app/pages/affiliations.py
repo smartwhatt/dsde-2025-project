@@ -4,7 +4,7 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 from sqlalchemy import text
-from app.database import engine 
+from database import engine 
 
 
 dash.register_page(__name__)

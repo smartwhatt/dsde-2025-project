@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from sqlalchemy import text
 
-from app.database import engine 
+from database import engine 
 
 dash.register_page(__name__)
 
@@ -314,12 +314,3 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
     ], color="success", className="mb-3")
     
     return [table, summary]
-
-
-@callback(
-    Output("author-papers-section", "children"),
-    Input("authors-grid", "selectedRows")
-)
-def display_author_papers(selected_rows):
-    """Display papers for selected author."""
-    return None

@@ -4,7 +4,7 @@ import dash
 
 
 import pandas as pd
-from app.database import engine 
+from database import engine 
 dash.register_page(__name__)
 
 

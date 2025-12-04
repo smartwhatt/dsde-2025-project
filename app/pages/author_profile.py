@@ -8,7 +8,7 @@ import dotenv
 import plotly.express as px
 import plotly.graph_objects as go
 
-from app.database import engine 
+from database import engine 
 
 
 dash.register_page(__name__, path_template="/author/<author_id>")

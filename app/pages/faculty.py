@@ -56,7 +56,10 @@ def get_authors(search_query="", affiliation_filter="chula_only", min_papers=0, 
         
         with engine.connect() as connection:
             df = pd.read_sql_query(query, connection, params=params)
-        
+            df['author_display'] = df.apply(
+                lambda x: f'<a href="/author/{x["author_id"]}" style="text-decoration: none; color: #0d6efd; font-weight: 500;">{x["indexed_name"]}</a>',
+                axis=1
+            )
         return df
     except Exception as e:
         print(f"Error fetching authors: {e}")
@@ -242,9 +245,6 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
             html.P("No authors found matching your criteria.", className="text-muted text-center p-4"),
             dbc.Alert("No results found. Try adjusting your filters.", color="warning", className="mb-3")
         ]
-    df["profile_link"] = df["author_id"].apply(
-        lambda aid: f"[🔗](/author/{aid})"
-    )
     
     # Create AG Grid table
     table = dag.AgGrid(
@@ -252,10 +252,11 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
         rowData=df.to_dict("records"),
         columnDefs=[
             {
-                "field": "indexed_name",
+                "field": "author_display",
                 "headerName": "Author Name",
                 "flex": 2,
                 "cellStyle": {"fontWeight": "500"},
+                "cellRenderer": "markdown"
             },
             {
                 "field": "affiliations",
@@ -283,17 +284,6 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
                 "headerName": "Scopus ID",
                 "width": 130,
             },
-            {
-                "field": "profile_link",
-                "headerName": "",
-                "width": 70,
-                "cellRenderer": "markdown",
-                "suppressMenu": True,
-                "sortable": False,
-                "filter": False,
-                "pinned": "right",
-                "cellStyle": {"textAlign": "center"},
-            },
         ],
         defaultColDef={
             "resizable": True,
@@ -305,6 +295,7 @@ def update_authors_table(n_clicks, search_query, affiliation_filter, min_papers,
             "paginationPageSize": 20,
             "rowSelection": "single",
         },
+        dangerously_allow_code=True,
         style={"height": "600px", "width": "100%"},
     )
     

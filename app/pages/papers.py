@@ -242,11 +242,11 @@ layout = dbc.Container([
                         ], md=2),
                         dbc.Col([
                             dbc.Label("Min Year", className="fw-semibold"),
-                            dbc.Input(id="min-year-input", type="number", min=1900, placeholder="1900", className="mb-3"),
+                            dbc.Input(id="min-year-input", type="number", min=2018, placeholder="2018", className="mb-3"),
                         ], md=2),
                         dbc.Col([
                             dbc.Label("Max Year", className="fw-semibold"),
-                            dbc.Input(id="max-year-input", type="number", min=1900, placeholder="2025", className="mb-3"),
+                            dbc.Input(id="max-year-input", type="number", min=2018, placeholder="2025", className="mb-3"),
                         ], md=2),
                     ]),
                     

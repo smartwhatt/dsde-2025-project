@@ -9,7 +9,7 @@ import pandas as pd
 import psycopg2
 import dotenv
 
-app = Dash(__name__, use_pages=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = Dash(__name__, use_pages=True, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 
 # Requires Dash 2.17.0 or later
 TEMP_PROJECT_NAME = "Research Insights (TEMP)"

@@ -3,12 +3,12 @@ import dash_ag_grid as dag
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-from sqlalchemy import create_engine, text
-import dotenv
+from sqlalchemy import text
+
+from app.database import engine 
 
 dash.register_page(__name__)
 
-conn_string = dotenv.get_key(".env", "CONN_STRING")
 
 def create_papers_grid(df, grid_id):
     """Helper function to create the Dash AG Grid component."""
@@ -99,7 +99,6 @@ def format_keywords_html(keywords_str):
 def get_papers(search_query="", min_citations=0, min_year=None, max_year=None):
     """Fetch papers based on unified search and filters."""
     try:
-        engine = create_engine(conn_string)
         
         where_conditions = []
         params = {}

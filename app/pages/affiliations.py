@@ -3,13 +3,11 @@ import dash_ag_grid as dag
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-from sqlalchemy import create_engine, text
-import dotenv
+from sqlalchemy import text
+from app.database import engine 
+
 
 dash.register_page(__name__)
-
-conn_string = dotenv.get_key(".env", "CONN_STRING")
-
 
 def create_papers_grid(df, grid_id):
     """Helper function to create the Dash AG Grid component."""
@@ -128,7 +126,6 @@ def format_badges_html(items_str, selected_items=None):
 def get_all_affiliations():
     """Fetch all unique affiliations for dropdown, alphabetically."""
     try:
-        engine = create_engine(conn_string)
         # Modified query: Removed the JOIN and HAVING count > 0 to ensure all institutions show up
         query = text("""
             SELECT DISTINCT
@@ -163,8 +160,6 @@ def get_papers_by_affiliations(selected_affiliations, min_citations=0, min_year=
         return pd.DataFrame()
     
     try:
-        engine = create_engine(conn_string)
-        
         where_conditions = []
         params = {}
         

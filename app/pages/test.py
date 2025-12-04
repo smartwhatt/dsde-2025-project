@@ -4,14 +4,9 @@ import dash
 
 
 import pandas as pd
-import psycopg2
-from sqlalchemy import create_engine
-import dotenv
+from app.database import engine 
 dash.register_page(__name__)
 
-conn_string = dotenv.get_key(".env", "CONN_STRING")
-
-engine = create_engine(conn_string, echo=True)
 
 with engine.connect() as connection:
     df = pd.read_sql_query("SELECT * from papers LIMIT 50", connection)

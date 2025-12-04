@@ -3,21 +3,20 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 import pandas as pd
-from sqlalchemy import create_engine, text
-import dotenv
+from sqlalchemy import text
 import plotly.express as px
 import plotly.graph_objects as go
 
+from app.database import engine 
+
+
 dash.register_page(__name__, path='/')
 
-# Get database connection
-conn_string = dotenv.get_key(".env", "CONN_STRING")
 
 
 def get_hero_stats():
     """Fetch overview statistics for hero section."""
     try:
-        engine = create_engine(conn_string)
         with engine.connect() as connection:
             query = text("""
                 SELECT 
@@ -45,7 +44,6 @@ def get_hero_stats():
 def get_publications_by_year():
     """Fetch publications trend by year."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 publication_year,
@@ -66,7 +64,6 @@ def get_publications_by_year():
 def get_top_cited_papers():
     """Fetch top 10 most cited papers."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 p.title,
@@ -100,7 +97,6 @@ def get_top_cited_papers():
 def get_top_authors():
     """Fetch top 10 most prolific authors from Chulalongkorn."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                     a.indexed_name,
@@ -131,7 +127,6 @@ def get_top_authors():
 def get_subject_areas():
     """Fetch papers by subject area."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 sa.subject_name,
@@ -153,7 +148,6 @@ def get_subject_areas():
 def get_top_keywords():
     """Fetch top 15 keywords."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 k.keyword,
@@ -175,7 +169,6 @@ def get_top_keywords():
 def get_top_institutions():
     """Fetch top 10 institutions by paper output."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 af.affiliation_name,
@@ -203,7 +196,6 @@ def get_top_institutions():
 def get_papers_by_country():
     """Fetch papers by country."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 af.country,

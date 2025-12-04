@@ -3,18 +3,17 @@ import dash_ag_grid as dag
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-from sqlalchemy import create_engine, text
-import dotenv
+from sqlalchemy import text
+
+from app.database import engine 
 
 dash.register_page(__name__)
 
-conn_string = dotenv.get_key(".env", "CONN_STRING")
 
 
 def get_authors(search_query="", affiliation_filter="chula_only", min_papers=0, min_citations=0):
     """Fetch authors based on search and filters."""
     try:
-        engine = create_engine(conn_string)
         
         # Build the WHERE clause based on filters
         where_conditions = []
@@ -67,7 +66,6 @@ def get_authors(search_query="", affiliation_filter="chula_only", min_papers=0, 
 def get_author_papers(author_id):
     """Fetch papers for a specific author."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 p.paper_id,

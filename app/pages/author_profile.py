@@ -1,22 +1,23 @@
 import dash
-from dash import html, dcc, callback, Input, Output, State
+from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 import dotenv
 import plotly.express as px
 import plotly.graph_objects as go
 
+from app.database import engine 
+
+
 dash.register_page(__name__, path_template="/author/<author_id>")
 
-conn_string = dotenv.get_key(".env", "CONN_STRING")
 
 
 def get_author_basic_info(author_id):
     """Fetch basic author information."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 a.author_id,
@@ -45,7 +46,6 @@ def get_author_basic_info(author_id):
 def get_papers_by_year(author_id):
     """Fetch publication and citation trends by year."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 p.publication_year,
@@ -69,7 +69,6 @@ def get_papers_by_year(author_id):
 def get_top_cited_papers(author_id):
     """Fetch top 10 most cited papers."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 p.paper_id,
@@ -103,7 +102,6 @@ def get_top_cited_papers(author_id):
 def get_top_collaborators(author_id):
     """Fetch top 10 collaborators."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 a.author_id,
@@ -129,7 +127,6 @@ def get_top_collaborators(author_id):
 def get_subject_areas(author_id):
     """Fetch top subject areas."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 sa.subject_name,
@@ -153,7 +150,6 @@ def get_subject_areas(author_id):
 def get_top_keywords(author_id):
     """Fetch top keywords."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 k.keyword,
@@ -177,7 +173,6 @@ def get_top_keywords(author_id):
 def get_top_sources(author_id):
     """Fetch top publication venues."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 s.source_name,
@@ -205,7 +200,6 @@ def get_top_sources(author_id):
 def get_affiliations(author_id):
     """Fetch all affiliations."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT DISTINCT
                 af.affiliation_name,

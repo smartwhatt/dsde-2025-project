@@ -1,19 +1,18 @@
 import dash
-from dash import html, dcc, callback, Input, Output
+from dash import html, dcc
 import dash_bootstrap_components as dbc
 import pandas as pd
-from sqlalchemy import create_engine, text
-import dotenv
+from sqlalchemy import  text
+from app.database import engine 
 
 dash.register_page(__name__, path_template="/papers/<paper_id>")
 
-conn_string = dotenv.get_key(".env", "CONN_STRING")
+
 
 
 def get_paper_details(paper_id):
     """Fetch comprehensive paper details."""
     try:
-        engine = create_engine(conn_string)
         query = text("""
             SELECT 
                 p.paper_id,
@@ -52,7 +51,6 @@ def get_paper_details(paper_id):
 def get_cited_references(paper_id):
     """Fetch cited papers and check if they exist in our database."""
     try:
-        engine = create_engine(conn_string)
         # This query joins reference_papers with papers to find internal links
         query = text("""
             SELECT 

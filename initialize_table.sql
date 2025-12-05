@@ -327,6 +327,29 @@ JOIN paper_author_affiliations paa ON af.affiliation_id = paa.affiliation_id
 JOIN paper_authors pa ON paa.paper_author_id = pa.paper_author_id
 GROUP BY af.affiliation_id;
 
+-- Paper Embedding Table
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE paper_embeddings (
+    embedding_id SERIAL PRIMARY KEY,
+    paper_id INTEGER NOT NULL REFERENCES papers(paper_id) ON DELETE CASCADE,
+
+    -- which model created this embedding
+    model VARCHAR(100) NOT NULL,
+
+    -- which field it embeds: 'title', 'abstract', 'combined'
+    source VARCHAR(50) DEFAULT 'combined',
+
+    embedding vector(768) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_paper_embedding_unique
+ON paper_embeddings (paper_id, model, source);
+
+
+
 -- =============================================
 -- TRIGGER FOR UPDATED_AT
 -- =============================================

@@ -10,7 +10,7 @@ import pathlib
 import tqdm
 from typing import List
 
-from csv_exporter import ScopusCSVExporter
+from processing.lib.csv_exporter import ScopusCSVExporter
 
 
 def load_json_files(data_dir: pathlib.Path, batch_size: int = 100) -> List[List[dict]]:

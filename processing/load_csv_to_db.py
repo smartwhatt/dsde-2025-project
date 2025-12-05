@@ -8,7 +8,7 @@ import asyncio
 import pathlib
 import dotenv
 
-from csv_to_db_loader import CSVToDBLoader, AsyncCSVToDBLoader
+from processing.lib.csv_to_db_loader import CSVToDBLoader, AsyncCSVToDBLoader
 
 dotenv.load_dotenv(".env")
 

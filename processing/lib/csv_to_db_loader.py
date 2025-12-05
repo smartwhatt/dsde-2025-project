@@ -10,7 +10,6 @@ Usage:
 """
 
 import csv
-import os
 import pathlib
 from typing import Optional, Callable, List, Dict
 import psycopg2

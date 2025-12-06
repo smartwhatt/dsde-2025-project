@@ -70,8 +70,8 @@ def get_top_cited_papers():
         query = text(
             """
             SELECT 
-                p.title,
                 p.paper_id,
+                p.title,
                 p.publication_year,
                 p.cited_by_count,
                 s.source_name as journal,
@@ -89,7 +89,7 @@ def get_top_cited_papers():
             df = pd.read_sql_query(query, connection)
         if not df.empty:
             df["title_display"] = df.apply(
-                lambda x: f'<a href="/papers/{x["paper_id"]}" style="text-decoration: none; color: #0d6efd; font-weight: 500;">{x["title"][:80] + "..." if len(str(x["title"])) > 80 else x["title"]}</a>',
+                lambda x: f'<a href="/papers/{x["paper_id"]}" style="text-decoration: none; color: #0d6efd;">{x["title"][:80] + "..." if len(str(x["title"])) > 80 else x["title"]}</a>',
                 axis=1,
             )
 
@@ -108,6 +108,7 @@ def get_top_authors():
         query = text(
             """
             SELECT 
+                    a.author_id,
                     a.indexed_name,
                     COUNT(DISTINCT pa.paper_id) AS paper_count,
                     COALESCE(SUM(p.cited_by_count), 0) AS total_citations
@@ -128,6 +129,10 @@ def get_top_authors():
         )
         with engine.connect() as connection:
             df = pd.read_sql_query(query, connection)
+            df["author_display"] = df.apply(
+                lambda x: f'<a href="/author/{x["author_id"]}" style="text-decoration: none; color: #0d6efd; font-weight: 500;">{x["indexed_name"]}</a>',
+                axis=1,
+            )
         return df
     except Exception as e:
         print(f"Error fetching top authors: {e}")
@@ -514,9 +519,10 @@ layout = dbc.Container(
                                         ),
                                         columnDefs=[
                                             {
-                                                "field": "indexed_name",
+                                                "field": "author_display",
                                                 "headerName": "Author",
                                                 "flex": 2,
+                                                "cellRenderer": "markdown",
                                             },
                                             {
                                                 "field": "paper_count",
@@ -542,6 +548,7 @@ layout = dbc.Container(
                                             "domLayout": "autoHeight",
                                         },
                                         style={"width": "100%"},
+                                        dangerously_allow_code=True,
                                     )
                                     if not df_top_authors.empty
                                     else html.P(

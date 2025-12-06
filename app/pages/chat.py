@@ -5,6 +5,8 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from sqlalchemy import text
 import json
+import threading
+import queue
 
 from database import engine
 from lib.rag_engine import RAGEngine
@@ -14,8 +16,12 @@ dash.register_page(__name__)
 # Initialize RAG engine
 rag_engine = RAGEngine(engine)
 
+# Global streaming state
+streaming_queue = queue.Queue()
+streaming_lock = threading.Lock()
 
-def create_message_bubble(message, is_user=True):
+
+def create_message_bubble(message, is_user=True, is_streaming=False):
     """Create a chat message bubble."""
     if is_user:
         return dbc.Card(
@@ -35,10 +41,15 @@ def create_message_bubble(message, is_user=True):
             except:
                 pass
 
+        # Add cursor for streaming effect
+        display_text = message_text
+        if is_streaming:
+            display_text += "▊"  # Cursor
+
         return dbc.Card(
             dbc.CardBody(
                 [
-                    dcc.Markdown(message_text, className="mb-2"),
+                    dcc.Markdown(display_text, className="mb-2"),
                     (
                         html.Div(
                             [
@@ -80,13 +91,86 @@ def create_message_bubble(message, is_user=True):
                             ],
                             className="mt-2",
                         )
-                        if sources
+                        if sources and not is_streaming
                         else None
                     ),
                 ]
             ),
             className="mb-3 me-auto",
             style={"maxWidth": "75%", "backgroundColor": "#f8f9fa"},
+        )
+
+
+def stream_llm_response(question, context_ids, history, session_id):
+    """Stream LLM response in a background thread."""
+    try:
+        # Use the RAG engine's LLM with streaming
+        from langchain_core.messages import HumanMessage, AIMessage
+
+        # Get relevant papers
+        if context_ids:
+            context_papers = rag_engine.get_papers_by_ids(context_ids)
+            search_results = rag_engine.semantic_search(
+                query=question,
+                top_k=rag_engine.top_k,
+                context_paper_ids=context_ids if len(context_ids) <= 20 else None,
+            )
+            paper_map = {p["paper_id"]: p for p in context_papers}
+            for paper in search_results:
+                if paper["paper_id"] not in paper_map:
+                    paper_map[paper["paper_id"]] = paper
+            relevant_papers = list(paper_map.values())[: rag_engine.top_k]
+        else:
+            relevant_papers = rag_engine.semantic_search(query=question)
+
+        # Format context
+        context = rag_engine.format_context(relevant_papers)
+
+        # Convert chat history
+        history_messages = []
+        if history:
+            for msg in history:
+                if msg["role"] == "user":
+                    history_messages.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    content = msg["content"].split("[SOURCES]")[0].strip()
+                    history_messages.append(AIMessage(content=content))
+
+        # Stream the response
+        full_response = ""
+        for chunk in rag_engine.chain.stream(
+            {"context": context, "chat_history": history_messages, "question": question}
+        ):
+            if hasattr(chunk, "content"):
+                full_response += chunk.content
+                streaming_queue.put(
+                    {
+                        "session_id": session_id,
+                        "type": "chunk",
+                        "content": full_response,
+                    }
+                )
+
+        # Format sources
+        sources = [
+            {
+                "paper_id": p["paper_id"],
+                "title": p["title"],
+                "similarity": p.get("similarity", 1.0),
+                "cited_by_count": p["cited_by_count"],
+            }
+            for p in relevant_papers
+        ]
+
+        # Send final message with sources
+        final_answer = full_response + "\n\n[SOURCES]\n" + json.dumps(sources)
+        streaming_queue.put(
+            {"session_id": session_id, "type": "complete", "content": final_answer}
+        )
+
+    except Exception as e:
+        streaming_queue.put(
+            {"session_id": session_id, "type": "error", "content": f"Error: {str(e)}"}
         )
 
 
@@ -251,36 +335,32 @@ layout = dbc.Container(
                                 ),
                                 dbc.CardBody(
                                     [
-                                        dcc.Loading(
-                                            id="loading-chat",
-                                            type="default",
-                                            children=html.Div(
-                                                id="chat-messages",
-                                                style={
-                                                    "height": "500px",
-                                                    "overflowY": "auto",
-                                                    "padding": "1rem",
-                                                    "backgroundColor": "#ffffff",
-                                                },
-                                                children=[
-                                                    html.Div(
-                                                        [
-                                                            html.I(
-                                                                className="bi bi-robot fs-1 text-muted mb-3"
-                                                            ),
-                                                            html.H5(
-                                                                "Welcome to Research Assistant!",
-                                                                className="text-muted",
-                                                            ),
-                                                            html.P(
-                                                                "Ask me anything about the research papers in the database.",
-                                                                className="text-muted",
-                                                            ),
-                                                        ],
-                                                        className="text-center mt-5",
-                                                    )
-                                                ],
-                                            ),
+                                        html.Div(
+                                            id="chat-messages",
+                                            style={
+                                                "height": "500px",
+                                                "overflowY": "auto",
+                                                "padding": "1rem",
+                                                "backgroundColor": "#ffffff",
+                                            },
+                                            children=[
+                                                html.Div(
+                                                    [
+                                                        html.I(
+                                                            className="bi bi-robot fs-1 text-muted mb-3"
+                                                        ),
+                                                        html.H5(
+                                                            "Welcome to Research Assistant!",
+                                                            className="text-muted",
+                                                        ),
+                                                        html.P(
+                                                            "Ask me anything about the research papers in the database.",
+                                                            className="text-muted",
+                                                        ),
+                                                    ],
+                                                    className="text-center mt-5",
+                                                )
+                                            ],
                                         )
                                     ],
                                     className="p-0",
@@ -321,11 +401,18 @@ layout = dbc.Container(
                 )
             ]
         ),
-        # Hidden stores
+        # Hidden stores and interval
         dcc.Store(id="chat-history", data=[]),
         dcc.Store(id="context-paper-ids", data=[]),
         dcc.Store(id="url-params", data={}),
+        dcc.Store(
+            id="streaming-state",
+            data={"is_streaming": False, "session_id": None, "current_response": ""},
+        ),
         dcc.Location(id="url", refresh=False),
+        dcc.Interval(
+            id="stream-interval", interval=100, disabled=True
+        ),  # 100ms update rate
     ],
     fluid=True,
     className="py-4 px-3 px-md-4",
@@ -640,11 +727,12 @@ def remove_paper_from_context(n_clicks, current_ids):
     return current_ids, paper_cards
 
 
-# Send message
+# Start streaming when user sends message
 @callback(
-    Output("chat-messages", "children"),
-    Output("chat-history", "data"),
+    Output("chat-history", "data", allow_duplicate=True),
     Output("chat-input", "value"),
+    Output("streaming-state", "data"),
+    Output("stream-interval", "disabled"),
     [Input("send-btn", "n_clicks"), Input("chat-input", "n_submit")],
     [
         State("chat-input", "value"),
@@ -653,28 +741,82 @@ def remove_paper_from_context(n_clicks, current_ids):
     ],
     prevent_initial_call=True,
 )
-def send_message(n_clicks, n_submit, message, history, context_ids):
-    """Send message and get AI response."""
+def start_streaming(n_clicks, n_submit, message, history, context_ids):
+    """Start streaming response in background thread."""
     if not message or not message.strip():
-        return dash.no_update, history, ""
+        return (
+            history,
+            "",
+            {"is_streaming": False, "session_id": None, "current_response": ""},
+            True,
+        )
 
     # Add user message to history
     history.append({"role": "user", "content": message})
 
-    # Get AI response
-    try:
-        response = rag_engine.answer_question(
-            question=message,
-            context_paper_ids=context_ids,
-            chat_history=history[:-1],  # Exclude current message
-        )
+    # Generate unique session ID
+    import time
 
-        # Add assistant response to history
-        history.append({"role": "assistant", "content": response})
+    session_id = f"session_{int(time.time() * 1000)}"
 
-    except Exception as e:
-        error_msg = f"Error: {str(e)}"
-        history.append({"role": "assistant", "content": error_msg})
+    # Start streaming in background thread
+    thread = threading.Thread(
+        target=stream_llm_response,
+        args=(message, context_ids, history[:-1], session_id),
+    )
+    thread.daemon = True
+    thread.start()
+
+    # Enable interval to poll for updates
+    return (
+        history,
+        "",
+        {"is_streaming": True, "session_id": session_id, "current_response": ""},
+        False,
+    )
+
+
+# Update chat with streaming chunks
+@callback(
+    Output("chat-messages", "children"),
+    Output("chat-history", "data", allow_duplicate=True),
+    Output("streaming-state", "data", allow_duplicate=True),
+    Output("stream-interval", "disabled", allow_duplicate=True),
+    Input("stream-interval", "n_intervals"),
+    [State("chat-history", "data"), State("streaming-state", "data")],
+    prevent_initial_call=True,
+)
+def update_streaming(n_intervals, history, streaming_state):
+    """Update chat messages with streaming chunks."""
+    if not streaming_state["is_streaming"]:
+        return dash.no_update, history, streaming_state, True
+
+    # Check queue for new chunks
+    chunks_found = False
+    while not streaming_queue.empty():
+        try:
+            data = streaming_queue.get_nowait()
+            if data["session_id"] == streaming_state["session_id"]:
+                chunks_found = True
+
+                if data["type"] == "chunk":
+                    streaming_state["current_response"] = data["content"]
+
+                elif data["type"] == "complete":
+                    # Add final message to history
+                    history.append({"role": "assistant", "content": data["content"]})
+                    streaming_state["is_streaming"] = False
+                    streaming_state["current_response"] = ""
+
+                elif data["type"] == "error":
+                    history.append({"role": "assistant", "content": data["content"]})
+                    streaming_state["is_streaming"] = False
+                    streaming_state["current_response"] = ""
+        except queue.Empty:
+            break
+
+    if not chunks_found and not streaming_state["is_streaming"]:
+        return dash.no_update, history, streaming_state, True
 
     # Render messages
     messages = []
@@ -683,7 +825,18 @@ def send_message(n_clicks, n_submit, message, history, context_ids):
             create_message_bubble(msg["content"], is_user=(msg["role"] == "user"))
         )
 
-    return messages, history, ""
+    # Add streaming message if active
+    if streaming_state["is_streaming"] and streaming_state["current_response"]:
+        messages.append(
+            create_message_bubble(
+                streaming_state["current_response"], is_user=False, is_streaming=True
+            )
+        )
+
+    # Disable interval if streaming complete
+    interval_disabled = not streaming_state["is_streaming"]
+
+    return messages, history, streaming_state, interval_disabled
 
 
 # Clear chat
